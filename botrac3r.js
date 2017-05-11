@@ -45,7 +45,7 @@ var voteList = [];
 let userTimes = {};
 const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-var yesnoOptions = ["Yes.", "No.", "Yes, definitely!", "Yes, of course!", "Well, I guess so...", "Hmm, I suppose not...", "No, of course not!", "No way, are you mad?", ">///<\njust kidding, the answer is yes", ">///<\njust kidding, the answer is no", "That's completely absurd.", "Sounds good!", "Probably not.", "Without a doubt!", "Is a giraffe's neck longer than your toenails?", "Is Jutomi female?"]; // Store information for the yesno function
+var yesnoOptions = ["Yes.", "No.", "Yes.", "No.", "Yes, definitely!", "Yes, of course!", "Well, I guess so...", "That doesn't sound like a good idea.", "No, of course not!", "No way, are you mad?", ">///<\njust kidding, the answer is yes", ">///<\njust kidding, the answer is no", "That's completely absurd.", "Sounds good!", "Probably not.", "Without a doubt!", "Is a giraffe's neck longer than your toenails?", "Is Jutomi female?", "Ugh. Are you serious?", "Fine, if you insist."]; // Possible answers for yesno
 
 let characters = {};
 
@@ -920,7 +920,7 @@ function convertTemp(userID, channelID, command) {
     var temperature = parseFloat(command.split(";")[1]);
     var fahrenheit = temperature*1.8+32;
     var celsius = (temperature-32)/1.8;
-    bot.sendMessage({to: channelID, message: "<@"+userID+">, "+temperature.toFixed(1)+"°F = "+celsius.toFixed(1)+"°C, and "+temperature.toFixed(1)+"°C = "+fahrenheit+"°F!"});
+    bot.sendMessage({to: channelID, message: "<@"+userID+">, "+temperature.toFixed(1)+"°F = "+celsius.toFixed(1)+"°C, and "+temperature.toFixed(1)+"°C = "+fahrenheit.toFixed(1)+"°F."});
 }
 
 function roll(userID, channelID, command) {
@@ -933,7 +933,7 @@ function roll(userID, channelID, command) {
         description = "Your number is";
     }
     if (number1 != parseInt(number1) || number2 != parseInt(number2)) {
-        bot.sendMessage({to: channelID, message: "<@"+userID+"> "+description+": 69420!!"});
+        bot.sendMessage({to: channelID, message: "<@"+userID+"> "+description+": **69420!!**"});
     } else {
         if (number1 < number2) {
             lowestNumber = number1;
@@ -943,9 +943,9 @@ function roll(userID, channelID, command) {
             highestNumber = number1;
         }
         if (lowestNumber != highestNumber) {
-            bot.sendMessage({to: channelID, message: "<@"+userID+"> "+description+": "+Math.floor(Math.random()*(highestNumber-lowestNumber+1)+lowestNumber)});
+            bot.sendMessage({to: channelID, message: "<@"+userID+"> "+description+": **"+Math.floor(Math.random()*(highestNumber-lowestNumber+1)+lowestNumber)+"**"});
         } else {
-            bot.sendMessage({to: channelID, message: "<@"+userID+"> "+description+": Hmm, let me think about that one. I choose... "+number1+". Surprised?"});
+            bot.sendMessage({to: channelID, message: "<@"+userID+"> "+description+": **Hmm, let me think about that one. I choose... "+number1+". Surprised?**"});
         }
     }
 }
@@ -971,14 +971,17 @@ function flag(channelID, command) {
 }
 
 function yesno(userID, channelID, command) {
-    var message = command.split(";")[1];
-    var output = "";
+    let description = command.split(";")[1];
+    if (description == undefined) {
+        description = "I decided";
+    }
+    let output = "";
     if (Math.random() < 0.002) {
         output = "That's a very important decision. You should decide for yourself.\nBy the way, this only has a 1/500 chance of showing up!";
     } else {
         output = yesnoOptions[Math.floor(Math.random()*yesnoOptions.length)];
     }
-    bot.sendMessage({to: channelID, message: "<@"+userID+"> asked `"+message+"`, I decided `"+output+"`"});
+    bot.sendMessage({to: channelID, message: "<@"+userID+"> "+description+": **"+output+"**"});
 }
 
 function wiki(channelID, command) {
@@ -1140,49 +1143,57 @@ bot.on("message", function(user, userID, channelID, message, event) {
         if (bot.users[userID].bot && userID != bot.id) {
             bot.sendMessage({to: channelID, message: "( ͡° ͜ʖ ͡°)"});
         } else {
-            if (message.substr(0, 7) == "..help;") {
+            switch (message.split(";")[0]) {
+            case "..help":
                 bot.sendMessage({to: channelID, message: "Hey there <@"+userID+">! Welcome to botrac3r, proud to be the least used bot on Epicord! Maybe some usage instructions will help convince people to use me... Oh look!\nUp-to-date documentation for botrac3r is available at http://cloudrac3r.ddns.net/data/botrac3r-docs.pdf (PDF, 200kB)\nAn editable version is available at http://cloudrac3r.ddns.net/data/botrac3r-docs.odt (ODT, 11MB)\nThanks for using botrac3r!"});
-            } else if (message.substr(0, 5) == "..yn;") {
+                break;
+            case "..yn":
                 yesno(userID, channelID, message);
-            } else if (message.substr(0, 7) == "..roll;") {
+                break;
+            case "..roll":
                 roll(userID, channelID, message);
-            } else if (message.substr(0, 7) == "..vote;") {
+                break;
+            case "..vote":
+            case "..poll":
                 vote(userID, channelID, message);
-            } else if (message.substr(0, 7) == "..poll;") {
-                vote(userID, channelID, message);
-            } else if (message.substr(0, 7) == "..temp;") {
+                break;
+            case "..temp":
                 convertTemp(userID, channelID, message);
-            } else if (message.substr(0, 8) == "..proxy;") {
+                break;
+            case "..proxy":
                 proxy(message);
-            } else if (message.substr(0, 6) == "..wwg;") {
+                break;
+            case "..wwg":
+            case "..onuw":
                 werewolf(user, userID, channelID, message);
-            } else if (message.substr(0, 7) == "..flag;") {
+                break;
+            case "..flag":
                 flag(channelID, message);
-            } else if (message.substr(0, 7) == "..wiki;") {
+                break;
+            case "..wiki":
                 wiki(channelID, message);
-            } else if (message.substr(0, 9) == "..unmute;") {
+                break;
+            case "..unmute":
                 bot.unmute({serverID: bot.channels[channelID].guild_id, userID: userID});
-            } else {
-                switch (message.split(";")[0]) {
-                case "..time":
-                    tz(userID, channelID, message);
-                    break;
-                case "..choose":
-                    choose(userID, channelID, message);
-                    break;
-                case "..char":
-                    char(userID, channelID, message);
-                    break;
-                case "..epicraft":
-                    epicraft(userID, channelID, message);
-                    break;
-                case "..twatr":
-                    twatrDetect(userID, channelID, message);
-                    break;
-                case "..8hippo":
-                    eightHippo(userID, channelID, message);
-                    break;
-                }
+                break;
+            case "..time":
+                tz(userID, channelID, message);
+                break;
+            case "..choose":
+                choose(userID, channelID, message);
+                break;
+            case "..char":
+                char(userID, channelID, message);
+                break;
+            case "..epicraft":
+                epicraft(userID, channelID, message);
+                break;
+            case "..twatr":
+                twatrDetect(userID, channelID, message);
+                break;
+            case "..8hippo":
+                eightHippo(userID, channelID, message);
+                break;
             }
         }
     }
