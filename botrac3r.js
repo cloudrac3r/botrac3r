@@ -15,6 +15,7 @@ var bot = new Discord.Client({
 const botAdmins = ["176580265294954507", "117661708092309509", "238459957811478529"];
 const warPeople = ["113457314106740736", "112767329347104768", "176580265294954507", "112760500130975744", "117661708092309509", "116718249567059974"];
 let warPeopleOnline = false;
+let lastPing = 0;
 var restarted = false;
 
 var wwgChannel = "";
@@ -1244,7 +1245,13 @@ bot.on("presence", function(user, userID, status, game, event) {
         }
         if (!warPeopleOnline && allOnline) {
             warPeopleOnline = true;
-            bot.sendMessage({to: "302683438010466305", message: "<@&307751497230188544> sup fam"});
+            if ((lastPing+1000*60*60*2) < Date.now()) {
+                bot.sendMessage({to: "302683438010466305", message: "<@&307751497230188544> sup fam"});
+                console.log("Sent twatr message (lastPing: "+lastPing+", test: "+(lastPing+1000*60*60*2)+", now: "+Date.now()+")");
+                lastPing = Date.now();
+            } else {
+                console.log("Didn't send twatr message: not enough time has passed (lastPing: "+lastPing+", test: "+(lastPing+1000*60*60*2)+", now: "+Date.now()+")");
+            }
         } else if (warPeopleOnline && !allOnline) {
             warPeopleOnline = false;
         }
