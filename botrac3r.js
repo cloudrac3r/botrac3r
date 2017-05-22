@@ -60,6 +60,13 @@ function pad(string, length, filler) {
     return string+yes(filler, length-string.length);
 }
 
+function reverse(string) {
+    var reversed = '';
+    for (var i = string.length-1; i >= 0; i--)
+        reversed += string[i];
+    return reversed;
+}
+
 function yes(character, count) {
     let string = "";
     for (let i = 0; i < count; i++) {
@@ -1127,13 +1134,19 @@ function exec(userID, channelID, command) {
 }
 
 function emoji(user, userID, channelID, command, event) {
+    command = reverse(command);
+    let subs = 0;
+    let occ = (command.match(/:\w*:(?!<)/g) || []).length;
     for (let s in bot.servers) {
         for (let e in bot.servers[s].emojis) {
-            let emoji = bot.servers[s].emojis[e];
-            if (command.indexOf(emoji.name) != -1) command = command.replace(new RegExp("[^<]:"+emoji.name+":", "g"), "<:"+emoji.name+":"+emoji.id+">");
+            let name = reverse(bot.servers[s].emojis[e].name);
+            if (command.search(new RegExp(":"+name+":(?!<)")) != -1) {
+                command = command.replace(new RegExp(":"+name+":(?!<)", "g"), ">"+reverse(bot.servers[s].emojis[e].id)+":"+name+":<");
+                subs++;
+            }
         }
     }
-    bot.sendMessage({to: channelID, message: "**"+user+"**: "+command});
+    if (subs == occ) bot.sendMessage({to: channelID, message: "**"+user+"**: "+reverse(command)});
 }
 
 bot.on("ready", function() { // When the bot comes online...
@@ -1223,7 +1236,7 @@ bot.on("message", function(user, userID, channelID, message, event) {
             }
         }
     }
-    if (message.search(/[^\<]:\w*:/) != -1) emoji(user, userID, channelID, message, event);
+    if (reverse(message).search(/:\w*:(?!<)/) != -1) emoji(user, userID, channelID, message, event);
     if (message.indexOf("..lenny") != -1) {
         message = message.replace(/..lenny;/g, "( ͡° ͜ʖ ͡°)");
         message = message.replace(/..lenny/g, "( ͡° ͜ʖ ͡°)");
