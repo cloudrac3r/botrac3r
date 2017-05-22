@@ -1126,6 +1126,16 @@ function exec(userID, channelID, command) {
     }
 }
 
+function emoji(user, userID, channelID, command, event) {
+    for (let s in bot.servers) {
+        for (let e in bot.servers[s].emojis) {
+            let emoji = bot.servers[s].emojis[e];
+            if (command.indexOf(emoji.name) != -1) command = command.replace(new RegExp("[^<]:"+emoji.name+":", "g"), "<:"+emoji.name+":"+emoji.id+">");
+        }
+    }
+    bot.sendMessage({to: channelID, message: "**"+user+"**: "+command});
+}
+
 bot.on("ready", function() { // When the bot comes online...
     console.log("I'm online!");
     if (!restarted) {
@@ -1209,9 +1219,11 @@ bot.on("message", function(user, userID, channelID, message, event) {
                 break;
             case "..exec":
                 if (botAdmins.indexOf(userID) != -1) exec(userID, channelID, message);
+                break;
             }
         }
     }
+    if (message.search(/[^\<]:\w*:/) != -1) emoji(user, userID, channelID, message, event);
     if (message.indexOf("..lenny") != -1) {
         message = message.replace(/..lenny;/g, "( ͡° ͜ʖ ͡°)");
         message = message.replace(/..lenny/g, "( ͡° ͜ʖ ͡°)");
