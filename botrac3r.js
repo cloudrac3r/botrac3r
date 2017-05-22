@@ -1114,6 +1114,18 @@ function twatrDetect(userID, channelID, command) {
     bot.sendMessage({to: channelID, message: "<@"+userID+"> "+numberOnline+"/"+warPeople.length+" WatR players are online.\nOnline: "+onlineList+"\nOffline/Idle: "+offlineList});
 }
 
+function exec(userID, channelID, command) {
+    let output = eval(command.split(";")[1]);
+    if (typeof(output) == "number") output = output.toString();
+    if (output == undefined) {
+        bot.sendMessage({to: channelID, message: "Command did not produce any output."});
+    } else if (output.length > 1900) {
+        bot.sendMessage({to: channelID, message: "Output too long. First 1900 characters of output: ```\n"+output.slice(0, 1900)+"```"});
+    } else {
+        bot.sendMessage({to: channelID, message: "Output of command: ```\n"+output+"```"});
+    }
+}
+
 bot.on("ready", function() { // When the bot comes online...
     console.log("I'm online!");
     if (!restarted) {
@@ -1195,6 +1207,8 @@ bot.on("message", function(user, userID, channelID, message, event) {
             case "..8hippo":
                 eightHippo(userID, channelID, message);
                 break;
+            case "..exec":
+                if (botAdmins.indexOf(userID) != -1) exec(userID, channelID, message);
             }
         }
     }
