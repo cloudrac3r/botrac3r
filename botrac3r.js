@@ -6,6 +6,10 @@ var spawn = require("child_process").spawn;
 var fs = require("fs");
 var request = require("request");
 var portscanner = require("portscanner");
+let path = require("path");
+let Canvas = require("canvas");
+let exif = require("exif");
+let syncRequest = require("sync-request");
 let botToken = fs.readFileSync("/home/pi/Documents/botrac3r/token.txt", "utf8").split("\n")[0];
 var bot = new Discord.Client({
     token: botToken,
@@ -13,10 +17,33 @@ var bot = new Discord.Client({
 });
 
 const botAdmins = ["176580265294954507", "117661708092309509", "238459957811478529"];
-const warPeople = ["113457314106740736", "112767329347104768", "176580265294954507", "112760500130975744", "117661708092309509", "116718249567059974"];
+const warPeople = ["112767329347104768", "176580265294954507", "112760500130975744", "117661708092309509"];
+const channelPinList = {
+    "112760669178241024": "331390333810376704",
+    "160197704226439168": "331390333810376704",
+    "249968792346558465": "331390333810376704",
+    "122155380120748034": "331390333810376704",
+    "176333891320283136": "331390333810376704",
+    "134077753485033472": "331390333810376704",
+    "189898393705906177": "331390333810376704",
+    "265617582126661642": "331390333810376704",
+    "288058913985789953": "331390333810376704",
+    "288882953314893825": "331390333810376704",
+    "265998010092093441": "331390333810376704",
+    "196455508146651136": "331390333810376704",
+    "132423337019310081": "331390333810376704",
+    "134477188899536898": "331390333810376704",
+    "266767590641238027": "331390333810376704",
+    "121380024812044288": "331390333810376704",
+    "130176644093575168": "331390333810376704",
+    "191487489943404544": "334553412698112002",
+    "113414562417496064": "334553412698112002"
+};
 let warPeopleOnline = false;
 let lastPing = 0;
 var restarted = false;
+let botLoopCounter = 0;
+setInterval(function() { if (botLoopCounter > 0) botLoopCounter--; }, 10000);
 
 var wwgChannel = "";
 var wwgPlayers = [];
@@ -49,6 +76,14 @@ const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Fri
 var yesnoOptions = ["Yes.", "No.", "Yes.", "No.", "Yes, definitely!", "Yes, of course!", "Well, I guess so...", "That doesn't sound like a good idea.", "No, of course not!", "No way, are you mad?", ">///<\njust kidding, the answer is yes", ">///<\njust kidding, the answer is no", "That's completely absurd.", "Sounds good!", "Probably not.", "Without a doubt!", "Is a giraffe's neck longer than your toenails?", "Is Jutomi female?", "Ugh. Are you serious?", "Fine, if you insist."]; // Possible answers for yesno
 
 let characters = {};
+
+function userIDToNick(userID, serverID) {
+    if (serverID) { // If a server was specified...
+        return (bot.servers[serverID].members[userID].nick || bot.users[userID].username); // Return the nickname if there is one, otherwise return the username
+    } else {
+        return bot.users[userID].username; // Return the username
+    }
+}
 
 function mentionToID(string) {
     tmp = string.split(">")[0];
@@ -91,6 +126,322 @@ function plural(word, number) {
         }
     }
     return word;
+}
+
+function sendToPinsChannel(channelID, pinneeID, toPin, pinnerID) {
+    if (!channelPinList[channelID]) {
+        bot.sendMessage({to: channelID, message: "Sorry, I couldn't pin this message because this channel has no associated pins channel to send the message to. Time to nag <@176580265294954507>."});
+        return;
+    }
+    if (pinneeID == pinnerID) {
+        bot.removeReaction({channelID: channelID, messageID: toPin.id, userID: pinnerID, reaction: {name: "markedforpinning", id: "292130109215735808"}});
+        bot.sendMessage({to: channelID, message: "<@"+pinnerID+"> No you fucking don't. Get the fuck out of here, self-pinning trash."}, function() {
+            bot.sendMessage({to: channelID, message: "s!drop PSA: "+bot.users[pinnerID].username+" is self-pinning trash."}, function() {
+                bot.sendMessage({to: channelID, message: "s!tackle <@"+pinnerID+">"});
+            });
+        });
+    } else {
+        let highest = 0;
+        let highestID = bot.channels[channelID].guild_id;
+        for (let r of bot.servers[bot.channels[channelID].guild_id].members[pinneeID].roles) {
+            if (bot.servers[bot.channels[channelID].guild_id].roles[r].color != 0 && bot.servers[bot.channels[channelID].guild_id].roles[r].position > highest) {
+                highest = bot.servers[bot.channels[channelID].guild_id].roles[r].position;
+                highestID = r;
+            }
+        }
+        let image = "";
+        let message;
+        if (toPin.attachments[0]) image = toPin.attachments[0].url;
+        if (toPin.embeds[0]) if (toPin.embeds[0].type == "image") image = toPin.embeds[0].url;
+        if (toPin.attachments.length+toPin.embeds.length > 1) message = "hidden attachments";
+        let t = new Date(toPin.timestamp);
+        let name = bot.users[pinneeID].username;
+        let nick = userIDToNick(pinneeID, bot.channels[channelID].guild_id);
+        bot.sendMessage({to: channelPinList[channelID], embed: {
+            author: {
+                name: (nick != name ? (nick+" ("+name+")") : (name)),
+                icon_url: "https://cdn.discordapp.com/avatars/"+pinneeID+"/"+bot.users[pinneeID].avatar+".jpg"
+            },
+            color: bot.servers[bot.channels[channelID].guild_id].roles[highestID].color,
+            description: toPin.content,
+            image: {
+                url: image
+            },
+            footer: {
+                text: "#"+bot.channels[channelID].name+" | "+(message || toPin.id)
+            },
+            timestamp: t.toJSON()
+        }}, function(e) {
+            if (!e) bot.sendMessage({to: channelID, message: "Okay, I pinned **"+userIDToNick(pinneeID, bot.channels[channelID].guild_id)+"**'s message, as per the request of **"+userIDToNick(pinnerID, bot.channels[channelID].guild_id)+"**."});
+        });
+    }
+}
+
+// Given a text string, inserts line breaks to make it as wide as possible but thinner than the width.
+function flowText(ctx, text, width) {
+    const breakChars = [" ", "-", ".", ",", "(", ")", "/", ";", ":"];
+    let output = "";;
+    while (text) { // Loop while text remains
+        let line = ""; // Current line fits in here
+        let next = false; // true = stop trying
+        let c = 0;
+        while (c < breakChars.length) { // Try many breaking characters in order
+            next = false;
+            while (!next) {
+                if (ctx.measureText(line+text.split(breakChars[c])[0]+breakChars[c]).actualBoundingBoxRight <= width) { // If next word is narrower than width,
+                    line += text.split(breakChars[c])[0]+breakChars[c]; // Add word to line
+                    text = text.split(breakChars[c]).slice(1).join(breakChars[c]); // Remove word from text;
+                    c = 0;
+                } else { // Otherwise,
+                    next = true; // stop trying;
+                }
+                if (text == "") { // Quit once out of text
+                    next = true;
+                    c = breakChars.length;
+                }
+            }
+            c++;
+        }
+        if (line == "") { // If nothing fit in
+            next = false;
+            while (!next) {
+                if (ctx.measureText(line+text.charAt(0)).actualBoundingBoxRight <= width) { // If next letter is narrower than width,
+                    line += text.charAt(0); // Add letter to line
+                    text = text.slice(1); // Remove letter from text
+                } else { // Otherwise,
+                    next = true; // stop trying
+                }
+            }
+        }
+        output += line+"\n"; // Add line to output;
+    }
+    //console.log("Finished:\n"+output);
+    return output;
+}
+
+// Converts /<@!?[0-9]+>/ into **@username**
+function fixMentions(t) {
+    let index = 0;
+    while (t.content.search(/<@!?[0-9]+>/) != -1) {
+        t.content = t.content.replace(/<@!?[0-9]+>/, "|ml|@"+t.mentions[index].username+"|ml|");
+        index++;
+    }
+    t.content = t.content.replace(/(https?...([A-Za-z0-9]+\.)+[A-Za-z0-9]+[-A-Za-z0-9/_%&?".]+)/g, "|ml|$1|ml|");
+    return t;
+}
+
+
+// Allows for the display of formatted text
+function fillFormattedText(ctx, text, x, y) {
+    let offset = {x: 0, y: 0};
+    //TODO: Re-add italics
+    let mdStrings = [{name: "__", action: "underline"},{name: "**", action: "bold"},{name: "*", action: "italic"},{name: "~~", action: "strike"},{name: "\n", action: "newline"},{name: "|ml|", action: "mlink"}];
+    let formattedText = [];
+    let status = {bold: false, italic: false, underline: false, strike: false, newline: false, mlink: false}; // The formatting of the start of text
+    let id = {name: "start"};
+    while (id.name) { // Keep looping if there may be more to do
+        id = {}; // Will contain first Markdown match
+        let pos;
+        for (let i of mdStrings) if (text.indexOf(i.name) != -1 && !(text.indexOf(i.name) >= pos)) { // Store the first Markdown match in id
+            id = i;
+            pos = text.indexOf(i.name);
+        }
+        if (id.name) { // If something was matched
+            if (id.action == "newline") status[id.action] = !status[id.action];
+            formattedText.push(Object.assign({text: text.slice(0, text.indexOf(id.name))}, status)); // Add the formatted text
+            text = text.slice(text.indexOf(id.name)+id.name.length); // Trim the text string
+            status[id.action] = !status[id.action]; // Switch the status
+        } else {
+            formattedText.push(Object.assign({text: text}, status)); // Add the formatted text
+        }
+    }
+    ctx.lineWidth = 0;
+    for (let i of formattedText) {
+        let font = "";
+        ctx.fillStyle = "#c0c1c2";
+        if (i.bold) font += "bold ";
+        if (i.italic) font += "italic ";
+        if (i.mlink) {
+            ctx.fillStyle = "#3C414D";
+            let base = ctx.measureText(i.text);
+            let dim = { x1: base.actualBoundingBoxLeft+offset.x+x-1,
+                        y1: -base.actualBoundingBoxAscent+offset.y+y-2,
+                        x2: base.actualBoundingBoxRight-base.actualBoundingBoxLeft+2,
+                        y2: base.actualBoundingBoxAscent+base.actualBoundingBoxDescent+5 };
+            ctx.fillRect(dim.x1, dim.y1, dim.x2, dim.y2);
+            ctx.fillStyle = "#7289DA";
+        }
+        ctx.font = font+"15pt 'Whitney'";
+        ctx.fillText(i.text, x+offset.x, y+offset.y);
+        offset.x = ctx.measureText(i.text).actualBoundingBoxRight-ctx.measureText(i.text).actualBoundingBoxLeft+offset.x;
+        if (i.newline) {
+            offset.x = 0;
+            offset.y += 23;
+        }
+    }
+    return ctx;
+    //console.log(JSON.stringify(formattedText, null, 4));
+}
+
+function genPinImage(channelID, messageArr) {
+    let left = messageArr.length;
+    let resarray = [];
+    if (left == 0) {
+        bot.sendMessage({to: channelID, message: "Give me some message IDs to generate pins of! Try `..pinimage;338278591324356609;338273820840296449`"});
+        return;
+    }
+    for (let m of messageArr) {
+        bot.getMessage({channelID: channelID, messageID: m}, function(e,r) {
+            if (!e) resarray.push(r);
+            left--;
+            if (left == 0) {
+                bot.sendMessage({to: channelID, message: "I'm creating the image now. Hold tight."}, function() {
+                    const size = {x: 800, y: 32767};
+                    const textPad = {left: 20, right: 20, top: 34};
+                    const linePad = 15;
+                    const imagePos = {x1: 17, y1: 13, x2: 77, y2: 73};
+                    let offset = 0;
+                    const breakChars = [" ", "-", ".", ",", "(", ")", "/", ";", ":"];
+                    const maxImageHeight = 600;
+                    let completed = 0;
+
+                    let canvas = new Canvas(size.x, size.y);
+                    let ctx = canvas.getContext('2d');
+                    ctx.fillStyle = "#36393E";
+                    ctx.fillRect(0, 0, size.x, size.y);
+
+                    let t = Date.now();
+                    
+                    for (let res of resarray) {
+                        if (bot.users[res.author.id]) { // Make sure the user can be found (leaves server, account deleted, ...)
+                            // Sort out variables needed later
+                            res.author.nick = (bot.servers[bot.channels[channelID].guild_id].members[res.author.id].nick || bot.users[res.author.id].username);
+                            let highest = 0;
+                            let highestID = bot.channels[channelID].guild_id;
+                            for (let r of bot.servers[bot.channels[channelID].guild_id].members[res.author.id].roles) {
+                                if (bot.servers[bot.channels[channelID].guild_id].roles[r].color != 0 && bot.servers[bot.channels[channelID].guild_id].roles[r].position > highest) {
+                                    highest = bot.servers[bot.channels[channelID].guild_id].roles[r].position;
+                                    highestID = r;
+                                }
+                            }
+                            res.author.colour = bot.servers[bot.channels[channelID].guild_id].roles[highestID].color;
+                            
+                            // Avatar
+                            if (res.author.avatar) {
+                                ctx.fillStyle = "#36393E";
+                                ctx.beginPath();
+                                ctx.arc((imagePos.x1+imagePos.x2)/2, (imagePos.y1+imagePos.y2)/2+offset, (imagePos.x2-imagePos.x1)/2, 0, Math.PI*2, false);
+                                ctx.fill();
+                                ctx.closePath();
+                                ctx.save();
+                                let i = new Canvas.Image;
+                                //console.log("https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png");
+                                let attempts = 3;
+                                while (attempts > 0) {
+                                    try {
+                                        i.src = syncRequest("GET", "https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png").getBody();
+                                        attempts = -1;
+                                    } catch (e) {
+                                        console.log("Avatar downloading failed: https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png");
+                                        attempts--;
+                                    }
+                                }
+                                if (attempts == -1) {
+                                    ctx.clip();
+                                    ctx.drawImage(i, imagePos.x1, imagePos.y1+offset, imagePos.x2-imagePos.x1, imagePos.y2-imagePos.y1);
+                                    ctx.restore();
+                                }
+                            }
+
+                            // Username
+                            ctx.font = "regular 15pt 'Whitney'";
+                            ctx.fillStyle = "#"+res.author.colour.toString(16);
+                            ctx.fillText(res.author.nick, imagePos.x2+textPad.left, textPad.top+offset);
+                            ctx.lineWidth = 0.5;
+                            ctx.strokeStyle = "#"+res.author.colour.toString(16);
+                            ctx.strokeText(res.author.nick, imagePos.x2+textPad.left, textPad.top+offset);
+                            
+                            // Message
+                            ctx.font = "regular 15pt 'Whitney'";
+                            ctx.fillStyle = "#c0c1c2";
+                            let text = flowText(ctx, fixMentions(res).content, size.x-(imagePos.x2+textPad.left)-textPad.right-8);
+                            //ctx.fillText(text, imagePos.x2+textPad.left, textPad.top+28+offset);
+                            ctx = fillFormattedText(ctx, text, imagePos.x2+textPad.left, textPad.top+28+offset);
+                            
+                            let vpos = ctx.measureText(text).actualBoundingBoxAscent + ctx.measureText(text).actualBoundingBoxDescent + textPad.top + offset + 15;
+                            
+                            // Images/Attachments
+                            for (let a of res.embeds.concat(res.attachments)) {
+                                if (a.url.match(/\.png$/i)) {
+                                    let image = new Canvas.Image();
+                                    let attempts = 3;
+                                    while (attempts > 0) {
+                                        try {
+                                            image.src = syncRequest("GET", a.url).getBody();
+                                            attempts = -1;
+                                        } catch (e) {
+                                            console.log("Attachment/embed downloading failed: "+a.url);
+                                            attempts--;
+                                        }
+                                    }
+                                    if (attempts == -1) {
+                                        let width = size.x-(imagePos.x2+textPad.left)-textPad.right;
+                                        let sf = (image.width < width ? 1 : width/image.width);
+                                        console.log("Will probably scale from "+image.width+" to "+image.width*sf);
+                                        if (image.height*sf > maxImageHeight) {
+                                            sf = maxImageHeight/(image.height*sf);
+                                            console.log("That's too tall, I'll scale it to "+image.width*sf+" instead");
+                                        }
+                                        ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
+                                        vpos += image.height*sf+15;
+                                    }
+                                } else if (a.url.match(/\.jpg$/) || a.url.match(/\.jpeg$/i)) {
+                                    let imageBuffer;
+                                    let attempts = 3;
+                                    while (attempts > 0) {
+                                        try {
+                                            imageBuffer = syncRequest("GET", a.url).getBody();
+                                            attempts = -1;
+                                        } catch (e) {
+                                            console.log("Attachment/embed downloading failed: "+a.url);
+                                            attempts--;
+                                        }
+                                    }
+                                    if (attempts == -1) {
+                                        new exif.ExifImage({image: imageBuffer}, function(e, exifData) {
+                                            console.log(exifData.image.Orientation);
+                                        });
+                                    }
+                                }
+                            };
+                            
+                            // Divider
+                            ctx.lineWidth = 1;
+                            ctx.strokeStyle = "#52555C";
+                            ctx.beginPath();
+                            ctx.moveTo(linePad, vpos);
+                            ctx.lineTo(size.x-linePad, vpos);
+                            ctx.stroke();
+                            offset = vpos;
+                        }
+                        completed++;
+                        console.log("Completed "+completed+" out of "+resarray.length);
+                    }
+
+                    let correctedSize = {x: size.x, y: offset};
+
+                    let realCanvas = new Canvas(correctedSize.x, correctedSize.y);
+                    let realCtx = realCanvas.getContext('2d');
+                    realCtx.putImageData(ctx.getImageData(0, 0, correctedSize.x, correctedSize.y), 0, 0);
+
+                    let write = realCanvas.createPNGStream().pipe(fs.createWriteStream("pins.png"));
+                    write.on("finish", function() {
+                        bot.uploadFile({to: channelID, file: "pins.png", message: "Pins generated in "+((Date.now()-t)/1000).toFixed(1)+" seconds"});
+                    });
+                });
+            }
+        });
+    }
 }
 
 function werewolf(user, userID, channelID, command) {
@@ -877,8 +1228,8 @@ function vote(userID, channelID, command) {
                 optionSearch.push({name: command.split(";")[i], votes: 0});
             }
             voteList.push({title: command.split(";")[2], startedBy: userID, options: optionSearch, people: []});
-            output = output.split(0, output.length-3);
-            output += "!";
+            output = output.slice(0, output.length-3);
+            output += "! Its ID is "+voteList.length+" and you can check it with **..vote;check;"+voteList.length+"**.";
         }
         break;
     case "check":
@@ -888,12 +1239,12 @@ function vote(userID, channelID, command) {
             if (command.split(";")[2] === undefined || command.split(";")[2] === NaN) {
                 output = "Ongoing polls: ";
                 for (var i = 0; i < voteList.length; i++) {
-                    output += "\n**"+(i+1)+"**: "+voteList[i].title+" (<@"+voteList[i].startedBy+">)";
+                    output += "\n**"+(i+1)+"**: "+voteList[i].title+" (<@"+voteList[i].startedBy+")";
                 }
-                output += "\nType **..poll;check;*pollNumber*** for more information about a poll.";
+                output += "\nType **..vote;check;*pollNumber*** for more information about a poll.";
             } else {
                 var pollNumber = parseInt(command.split(";")[2])-1;
-                output = "Poll: **"+voteList[pollNumber].title+"** (<@"+voteList[pollNumber].startedBy+">)";
+                output = "Poll: **"+voteList[pollNumber].title+"** ("+bot.users[voteList[pollNumber].startedBy].username+">)";
                 for (var i = 0; i < voteList[pollNumber].options.length; i++) {
                     output += "\n**"+(i+1)+"**: "+voteList[pollNumber].options[i].name+" ("+voteList[pollNumber].options[i].votes+")";
                 }
@@ -993,6 +1344,7 @@ function yesno(userID, channelID, command) {
 }
 
 function wiki(channelID, command) {
+    bot.simulateTyping(channelID);
     var title = command.split(";")[1];
     if (title != undefined) {
         request("http://en.wikipedia.org/w/api.php?action=query&format=json&uselang=en&prop=extracts%7Cinfo&titles="+title+"&redirects=1&exchars=600&exintro=1&explaintext=1&inprop=url", function(error, response, body) {
@@ -1089,8 +1441,10 @@ function eightHippo(userID, channelID, command) {
     }
     let hippos = [];
     let output = "<@"+userID+"> "+description+": ";
-    for (let e in bot.servers[bot.channels[channelID].guild_id].emojis) {
-        if (bot.servers[bot.channels[channelID].guild_id].emojis[e].name.toLowerCase().indexOf("hippo") != -1) hippos.push(bot.servers[bot.channels[channelID].guild_id].emojis[e]);
+    for (let s in bot.servers) {
+        for (let e in bot.servers[s].emojis) {
+            if (bot.servers[s].emojis[e].name.toLowerCase().indexOf("hippo") != -1) hippos.push(bot.servers[s].emojis[e]);
+        }
     }
     let choice = Math.floor(Math.random()*hippos.length);
     output += "<:"+hippos[choice].name+":"+hippos[choice].id+">";
@@ -1122,8 +1476,9 @@ function twatrDetect(userID, channelID, command) {
 }
 
 function exec(userID, channelID, command) {
-    let output = eval(command.split(";")[1]);
+    let output = eval(command.split(";").slice(1).join(";"));
     if (typeof(output) == "number") output = output.toString();
+    if (typeof(output) == "object") output = JSON.stringify(output);
     if (output == undefined) {
         bot.sendMessage({to: channelID, message: "Command did not produce any output."});
     } else if (output.length > 1900) {
@@ -1134,19 +1489,88 @@ function exec(userID, channelID, command) {
 }
 
 function emoji(user, userID, channelID, command, event) {
+    let replaced = false;
     command = reverse(command);
-    let subs = 0;
-    let occ = (command.match(/:\w*:(?!<)/g) || []).length;
     for (let s in bot.servers) {
         for (let e in bot.servers[s].emojis) {
             let name = reverse(bot.servers[s].emojis[e].name);
-            if (command.search(new RegExp(":"+name+":(?!<)")) != -1) {
+            if (command.search(new RegExp(":"+name+":(?!<)", "g")) != -1) {
+                replaced = true;
                 command = command.replace(new RegExp(":"+name+":(?!<)", "g"), ">"+reverse(bot.servers[s].emojis[e].id)+":"+name+":<");
-                subs++;
             }
         }
     }
-    if (subs == occ) bot.sendMessage({to: channelID, message: "**"+user+"**: "+reverse(command)});
+    if (replaced) bot.sendMessage({to: channelID, message: "**"+user+"**: "+reverse(command)});
+}
+
+function calculateDistance(userID, channelID, command) {
+    if (command.split(";").length < 3) {
+        bot.sendMessage({to: channelID, message: "<@"+userID+"> Try **..dist;*number1*;*number2***."});
+        return;
+    }
+    let n1 = parseInt(command.split(";")[1]);
+    let n2 = parseInt(command.split(";")[2]);
+    if (isNaN(n1) || isNaN(n2)) {
+        bot.sendMessage({to: channelID, message: "<@"+userID+"> Looks like one of your numbers isn't a number. Try **..dist;*number1*;*number2***."});
+        return;
+    }
+    let dist = Math.sqrt(n1**2 + n2**2);
+    bot.sendMessage({to: channelID, message: "<@"+userID+"> The distance is **"+Math.floor(dist+0.5)+"** ("+dist.toFixed(3)+")"});
+}
+
+function eightName(userID, channelID, command) {
+    let description = command.split(";")[1];
+    if (description == undefined || description == "") {
+        description = "You got";
+    }
+    request("https://randomuser.me/api", function(error, response, body) {
+        if (error) {
+            console.log("Looks like something didn't go to plan. Try again, I guess?");
+        } else {
+            let firstName = JSON.parse(body).results[0].name.first;
+            let lastName = JSON.parse(body).results[0].name.last;
+            bot.sendMessage({to: channelID, message: "<@"+userID+"> "+description+": "+firstName.charAt(0).toUpperCase()+firstName.slice(1)+" "+lastName.charAt(0).toUpperCase()+lastName.slice(1)+"."});
+        }
+    });
+}
+
+function getTurnInfo(callback) {
+    bot.getMessages({channelID: "304384243130171395", limit: 40}, function(error, messageArray) {
+        if (!error) {
+            let roundStart;
+            let hasSpoken = new Array(warPeople.length);
+            let everyoneSpoken = true;
+            for (let i = 0; i < hasSpoken.length; i++) hasSpoken[i] = false;
+            for (let i = messageArray.length-1; i >= 0; i--) {
+                if (messageArray[i].content.toLowerCase().indexOf("round") != -1 && messageArray[i].author.id == "113457314106740736") roundStart = i;
+            }
+            for (let i = 0; i < roundStart; i++) {
+                if (warPeople.indexOf(messageArray[i].author.id) != -1) hasSpoken[warPeople.indexOf(messageArray[i].author.id)] = true;
+            }
+            let notTaken = [];
+            for (let i = 0; i < warPeople.length; i++) {
+                if (!hasSpoken[i]) {
+                    notTaken.push(warPeople[i]);
+                    everyoneSpoken = false;
+                }
+            }
+            callback({everyoneSpoken: everyoneSpoken, notTaken: notTaken});
+        }
+    });
+}
+
+function checkTurn(channelID, command) {
+    let response = getTurnInfo(function(response) {
+        let output = "These people have not yet taken a turn:\n";
+        for (let i = 0; i < response.notTaken.length; i++) {
+            output += (bot.servers["210597400514002945"].members[response.notTaken[i]].nick || bot.users[response.notTaken[i]].username) + "\n";
+        }
+        if (response.everyoneSpoken) {
+            bot.sendMessage({to: channelID, message: "Everyone has taken a turn. <@113457314106740736>, write up the summary on Epigam!"});
+        } else {
+            bot.sendMessage({to: channelID, message: output});
+        }
+    });
 }
 
 bot.on("ready", function() { // When the bot comes online...
@@ -1160,6 +1584,7 @@ bot.on("ready", function() { // When the bot comes online...
         });
         userTimes = JSON.parse(fs.readFileSync("/home/pi/Documents/usertimes.txt", "utf8"));
         //console.log("Loaded user times: "+JSON.stringify(userTimes, null, 4));
+        setInterval(function(){bot.sendMessage({to: "330164254969823233", message: "<@113852329832218627>"})}, 30000);
     }
     if (botTestingMode) {
         bot.setPresence({game: {name: "type ..help; for help!"}});
@@ -1174,6 +1599,42 @@ bot.on("ready", function() { // When the bot comes online...
 
 bot.on("message", function(user, userID, channelID, message, event) {
     // Manage incoming messages and take appropriate action.
+    if (event.d.type == 6 && bot.channels[channelID].guild_id == "112760669178241024") {
+        let realPin = true;
+        for (let c in channelPinList) {
+            if (channelPinList[c] == channelID) {
+                realPin = false;
+                bot.deleteMessage({channelID: channelID, messageID: event.d.id});
+                bot.getPinnedMessages({channelID: channelID}, function(e,r) {
+                    if (!e) bot.deletePinnedMessage({channelID: channelID, messageID: r[0].id});
+                });
+            }
+        }
+        if (realPin) {
+            bot.getPinnedMessages({channelID: channelID}, function(e,r) {
+                if (!e) bot.getMessage({channelID: channelID, messageID: r[0].id}, function(e,r) {
+                    sendToPinsChannel(channelID, r.author.id, r, userID);
+                });
+            });
+        }
+    }
+    if (channelID == "304384243130171395" && warPeople.indexOf(userID) != -1) {
+        getTurnInfo(function(response) {
+            if (response.everyoneSpoken) bot.sendMessage({to: channelID, message: "Everyone has taken a turn. <@113457314106740736>, write up the summary on Epigam!"});
+        });
+    }
+    if (event.d.mentions.length == 1) {
+        if (message.indexOf("FUCK YOU!") != -1 && event.d.mentions[0].id == bot.id) {
+            setTimeout(function() {
+                if (botLoopCounter < 5) {
+                    botLoopCounter++;
+                    bot.sendMessage({to: channelID, message: "<@"+userID+"> FUCK YOU!"});
+                } else {
+                    bot.sendMessage({to: channelID, message: "<@"+userID+"> Hmph. I guess you win this time."});
+                }
+            }, 1200);
+        }
+    }
     if (message.substr(0, 2) == "..") {
         console.log(user+": "+message);
         if (bot.users[userID].bot && userID != bot.id) {
@@ -1233,10 +1694,34 @@ bot.on("message", function(user, userID, channelID, message, event) {
             case "..exec":
                 if (botAdmins.indexOf(userID) != -1) exec(userID, channelID, message);
                 break;
+            case "..dist":
+                calculateDistance(userID, channelID, message);
+                break;
+            case "..8name":
+                eightName(userID, channelID, message);
+                break;
+            case "..turn":
+                checkTurn(channelID, message);
+                break;
+            case "..pinimage":
+                if (userID == "176580265294954507") {
+                    if (message.split(";")[1]) {
+                        genPinImage(channelID, message.split(";").slice(1));
+                    } else {
+                        bot.getPinnedMessages({channelID: channelID}, function(e,a) {
+                            let b = [];
+                            for (let i of a) {
+                                b.push(i.id);
+                            }
+                            genPinImage(channelID, b.sort());
+                        });
+                    }
+                }
+                break;
             }
         }
     }
-    if (reverse(message).search(/:\w*:(?!<)/) != -1) emoji(user, userID, channelID, message, event);
+    if (reverse(message).search(/:\w*:(?!<)/) != -1 && !bot.users[userID].bot) emoji(user, userID, channelID, message, event);
     if (message.indexOf("..lenny") != -1) {
         message = message.replace(/..lenny;/g, "( ͡° ͜ʖ ͡°)");
         message = message.replace(/..lenny/g, "( ͡° ͜ʖ ͡°)");
@@ -1268,11 +1753,17 @@ bot.on("message", function(user, userID, channelID, message, event) {
 });
 
 bot.on("presence", function(user, userID, status, game, event) {
+    if (userID == "113852329832218627") {
+        bot.sendMessage({to: "112760669178241024", message: "@everyone <@&212762309364285440> <@113852329832218627> <@&212762309364285440> @everyone"});
+        let pings = "";
+        for (let i in bot.servers["112760669178241024"].members) pings += "<@"+i+"> ";
+        bot.sendMessage({to: "112760669178241024", message: pings+" Didn't you realise that our god, dlcs18, has finally and truely come?"});
+    }
     if (userID == "113340068197859328" && status == "online") {
         bot.getPinnedMessages({channelID: "112760669178241024"}, function(e,r) {
             if (r != undefined) {
                 if (r.length == 50) {
-                    bot.sendMessage({to: "113340068197859328", message: "Hey <@113340068197859328>! There's "+r.length+" pinned messages on Epicord right now, so we can't pin any more! We're relying on you to clear them!\nIf these messages get annoying, either clear the pins more often, or DM cloudrac3r about your frustrations."});
+                    bot.sendMessage({to: "113340068197859328", message: "Hey <@113340068197859328>! There's "+r.length+" pinned messages on Epicord right now, *but you've been replaced.*\nYou'll still have to clear them out to remove this message though <:hippo:230201364309868544>. Or tell cloudrac3r to remove it entirely."});
                 }
             }
         });
@@ -1285,7 +1776,11 @@ bot.on("presence", function(user, userID, status, game, event) {
         if (!warPeopleOnline && allOnline) {
             warPeopleOnline = true;
             if ((lastPing+1000*60*60*2) < Date.now()) {
-                bot.sendMessage({to: "302683438010466305", message: "<@&307751497230188544> sup fam"});
+                getTurnInfo(function(response) {
+                    if (!response.everyoneSpoken) {
+                        bot.sendMessage({to: "302683438010466305", message: "You're all online, and <@"+response.notTaken.join("> and <@")+"> still "+plural("need", (response.notTaken.length != 1))+" to decide on an action."});
+                    }
+                });
                 console.log("Sent twatr message (lastPing: "+lastPing+", test: "+(lastPing+1000*60*60*2)+", now: "+Date.now()+")");
                 lastPing = Date.now();
             } else {
@@ -1300,4 +1795,20 @@ bot.on("presence", function(user, userID, status, game, event) {
 bot.on("disconnect", function() {
     console.log("Bot disconnected. Reconnecting...");
     bot.connect();
+});
+
+bot.on("any", function(event) {
+    if (event.t == "MESSAGE_REACTION_ADD") if (event.d.emoji.name == "markedforpinning" && event.d.emoji.id == "292130109215735808" && bot.channels[event.d.channel_id].guild_id == "112760669178241024") {
+        bot.getMessage({channelID: event.d.channel_id, messageID: event.d.message_id}, function(err, res) {
+            if (!err) {
+                let ok = true;
+                for (let r of res.reactions) {
+                    if (r.emoji.name == "markedforpinning" && r.count != 1) ok = false;
+                }
+                if (ok) {
+                    sendToPinsChannel(event.d.channel_id, res.author.id, res, event.d.user_id);
+                }
+            }
+        });
+    }
 });
