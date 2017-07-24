@@ -3,10 +3,13 @@
 A Discord bot for utilities, fun, time zones, deleting spoo.py's lmaos, playing One Night Ultimate Werewolf, sending random hippos, and many more unrelated things.
 
 ## Running
-### Install discord.io
-    npm install discord.io
+### Install libraries
+    npm install discord.io portscanner canvas exif sync-request
+If you aren't able to install canvas, see https://github.com/Automattic/node-canvas for help.
 ### Add token
-    echo "(bot token)" > token.txt
+Create an empty file named `token.txt` and put your bot token in it. There shouldn't be anything else in that file.
+
+If you don't have a bot token, you should obtain one by creating an app at https://discordapp.com/developers/applications/me.
 ### Start bot
     node botrac3r.js
 
