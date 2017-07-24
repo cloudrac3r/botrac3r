@@ -284,163 +284,199 @@ function fillFormattedText(ctx, text, x, y) {
 }
 
 function genPinImage(channelID, messageArr) {
-    let left = messageArr.length;
+    const size = {x: 800, y: 32767};
+    const textPad = {left: 20, right: 20, top: 34};
+    const linePad = 15;
+    const imagePos = {x1: 17, y1: 13, x2: 77, y2: 73};
+    let offset = 0;
+    const breakChars = [" ", "-", ".", ",", "(", ")", "/", ";", ":"];
+    const maxImageHeight = 600;
+    let completed = 0;
+    let vpos = 0;
+
+    let canvas = new Canvas(size.x, size.y);
+    let ctx = canvas.getContext('2d');
+    ctx.fillStyle = "#36393E";
+    ctx.fillRect(0, 0, size.x, size.y);
+
+    let t = Date.now();
+    let index = 0;
     let resarray = [];
-    if (left == 0) {
-        bot.sendMessage({to: channelID, message: "Give me some message IDs to generate pins of! Try `..pinimage;338278591324356609;338273820840296449`"});
-        return;
-    }
-    for (let m of messageArr) {
-        bot.getMessage({channelID: channelID, messageID: m}, function(e,r) {
+
+    bot.simulateTyping(channelID);
+    getRes();
+    
+    function getRes() {
+        bot.getMessage({channelID: channelID, messageID: messageArr[index]}, function(e,r) {
             if (!e) resarray.push(r);
-            left--;
-            if (left == 0) {
-                bot.sendMessage({to: channelID, message: "I'm creating the image now. Hold tight."}, function() {
-                    const size = {x: 800, y: 32767};
-                    const textPad = {left: 20, right: 20, top: 34};
-                    const linePad = 15;
-                    const imagePos = {x1: 17, y1: 13, x2: 77, y2: 73};
-                    let offset = 0;
-                    const breakChars = [" ", "-", ".", ",", "(", ")", "/", ";", ":"];
-                    const maxImageHeight = 600;
-                    let completed = 0;
+            if (index < messageArr.length) {
+                getRes();
+            } else {
+                bot.sendMessage({to: channelID, message: "Converting "+messageArr.length+" "+plural("message", messageArr.length)+" to an image. Let's do it."});
+                ctxAppend();
+            }
+        });
+        index++;
+    }
 
-                    let canvas = new Canvas(size.x, size.y);
-                    let ctx = canvas.getContext('2d');
+    function ctxAppend() {
+        if (resarray.length == 0) {
+            let correctedSize = {x: size.x, y: offset};
+            let realCanvas = new Canvas(correctedSize.x, correctedSize.y);
+            let realCtx = realCanvas.getContext('2d');
+            realCtx.putImageData(ctx.getImageData(0, 0, correctedSize.x, correctedSize.y), 0, 0);
+
+            let write = realCanvas.createPNGStream().pipe(fs.createWriteStream("pins.png"));
+            write.on("finish", function() {
+                bot.uploadFile({to: channelID, file: "pins.png", message: "Pins generated in "+((Date.now()-t)/1000).toFixed(1)+" seconds"});
+            });
+        } else {
+            let res = resarray.splice(0, 1)[0];
+            console.log(JSON.stringify(res));
+            if (bot.users[res.author.id]) { // Make sure the user can be found (leaves server, account deleted, ...)
+                // Sort out variables needed later
+                res.author.nick = (bot.servers[bot.channels[channelID].guild_id].members[res.author.id].nick || bot.users[res.author.id].username);
+                let highest = 0;
+                let highestID = bot.channels[channelID].guild_id;
+                for (let r of bot.servers[bot.channels[channelID].guild_id].members[res.author.id].roles) {
+                    if (bot.servers[bot.channels[channelID].guild_id].roles[r].color != 0 && bot.servers[bot.channels[channelID].guild_id].roles[r].position > highest) {
+                        highest = bot.servers[bot.channels[channelID].guild_id].roles[r].position;
+                        highestID = r;
+                    }
+                }
+                res.author.colour = bot.servers[bot.channels[channelID].guild_id].roles[highestID].color;
+                
+                // Avatar
+                if (res.author.avatar) {
                     ctx.fillStyle = "#36393E";
-                    ctx.fillRect(0, 0, size.x, size.y);
-
-                    let t = Date.now();
-                    
-                    for (let res of resarray) {
-                        if (bot.users[res.author.id]) { // Make sure the user can be found (leaves server, account deleted, ...)
-                            // Sort out variables needed later
-                            res.author.nick = (bot.servers[bot.channels[channelID].guild_id].members[res.author.id].nick || bot.users[res.author.id].username);
-                            let highest = 0;
-                            let highestID = bot.channels[channelID].guild_id;
-                            for (let r of bot.servers[bot.channels[channelID].guild_id].members[res.author.id].roles) {
-                                if (bot.servers[bot.channels[channelID].guild_id].roles[r].color != 0 && bot.servers[bot.channels[channelID].guild_id].roles[r].position > highest) {
-                                    highest = bot.servers[bot.channels[channelID].guild_id].roles[r].position;
-                                    highestID = r;
-                                }
-                            }
-                            res.author.colour = bot.servers[bot.channels[channelID].guild_id].roles[highestID].color;
-                            
-                            // Avatar
-                            if (res.author.avatar) {
-                                ctx.fillStyle = "#36393E";
-                                ctx.beginPath();
-                                ctx.arc((imagePos.x1+imagePos.x2)/2, (imagePos.y1+imagePos.y2)/2+offset, (imagePos.x2-imagePos.x1)/2, 0, Math.PI*2, false);
-                                ctx.fill();
-                                ctx.closePath();
-                                ctx.save();
-                                let i = new Canvas.Image;
-                                //console.log("https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png");
-                                let attempts = 3;
-                                while (attempts > 0) {
-                                    try {
-                                        i.src = syncRequest("GET", "https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png").getBody();
-                                        attempts = -1;
-                                    } catch (e) {
-                                        console.log("Avatar downloading failed: https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png");
-                                        attempts--;
-                                    }
-                                }
-                                if (attempts == -1) {
+                    ctx.beginPath();
+                    ctx.arc((imagePos.x1+imagePos.x2)/2, (imagePos.y1+imagePos.y2)/2+offset, (imagePos.x2-imagePos.x1)/2, 0, Math.PI*2, false);
+                    ctx.fill();
+                    ctx.closePath();
+                    ctx.save();
+                    let i = new Canvas.Image;
+                    //console.log("https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png");
+                    requestAvatar();
+                    function requestAvatar() {
+                        request("https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png", {encoding: null}, function(e,r,b) {
+                            if (e) {
+                                console.log("Error while getting avatar: "+e);
+                                requestAvatar();
+                            } else {
+                                i.onload = function() {
                                     ctx.clip();
                                     ctx.drawImage(i, imagePos.x1, imagePos.y1+offset, imagePos.x2-imagePos.x1, imagePos.y2-imagePos.y1);
                                     ctx.restore();
+                                    con1();
                                 }
+                                i.src = new Buffer(b, "binary");
                             }
+                        });
+                    }
+                }
 
-                            // Username
-                            ctx.font = "regular 15pt 'Whitney'";
-                            ctx.fillStyle = "#"+res.author.colour.toString(16);
-                            ctx.fillText(res.author.nick, imagePos.x2+textPad.left, textPad.top+offset);
-                            ctx.lineWidth = 0.5;
-                            ctx.strokeStyle = "#"+res.author.colour.toString(16);
-                            ctx.strokeText(res.author.nick, imagePos.x2+textPad.left, textPad.top+offset);
-                            
-                            // Message
-                            ctx.font = "regular 15pt 'Whitney'";
-                            ctx.fillStyle = "#c0c1c2";
-                            let text = flowText(ctx, fixMentions(res).content, size.x-(imagePos.x2+textPad.left)-textPad.right-8);
-                            //ctx.fillText(text, imagePos.x2+textPad.left, textPad.top+28+offset);
-                            ctx = fillFormattedText(ctx, text, imagePos.x2+textPad.left, textPad.top+28+offset);
-                            
-                            let vpos = ctx.measureText(text).actualBoundingBoxAscent + ctx.measureText(text).actualBoundingBoxDescent + textPad.top + offset + 15;
-                            
-                            // Images/Attachments
-                            for (let a of res.embeds.concat(res.attachments)) {
-                                if (a.url.match(/\.png$/i)) {
-                                    let image = new Canvas.Image();
-                                    let attempts = 3;
-                                    while (attempts > 0) {
-                                        try {
-                                            image.src = syncRequest("GET", a.url).getBody();
-                                            attempts = -1;
-                                        } catch (e) {
-                                            console.log("Attachment/embed downloading failed: "+a.url);
-                                            attempts--;
-                                        }
+                function con1() {
+                    console.log("con1");
+                    // Username
+                    ctx.font = "regular 15pt 'Whitney'";
+                    ctx.fillStyle = "#"+res.author.colour.toString(16);
+                    ctx.fillText(res.author.nick, imagePos.x2+textPad.left, textPad.top+offset);
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeStyle = "#"+res.author.colour.toString(16);
+                    ctx.strokeText(res.author.nick, imagePos.x2+textPad.left, textPad.top+offset);
+                    
+                    // Message
+                    ctx.font = "regular 15pt 'Whitney'";
+                    ctx.fillStyle = "#c0c1c2";
+                    let text = flowText(ctx, fixMentions(res).content, size.x-(imagePos.x2+textPad.left)-textPad.right-8);
+                    //ctx.fillText(text, imagePos.x2+textPad.left, textPad.top+28+offset);
+                    ctx = fillFormattedText(ctx, text, imagePos.x2+textPad.left, textPad.top+28+offset);
+                    
+                    vpos = ctx.measureText(text).actualBoundingBoxAscent + ctx.measureText(text).actualBoundingBoxDescent + textPad.top + offset + 15;
+                    
+                    // Images/Attachments
+                    let attachmentsLeft = res.embeds.concat(res.attachments).length;
+                    if (attachmentsLeft == 0) con2();
+                    for (let a of res.embeds.concat(res.attachments)) {
+                        if (!a.url) a.url = "";
+                        if (a.url.match(/\.png$/i)) {
+                            console.log("Requesting image");
+                            request(a.url, {encoding: null}, function(e,r,b) {
+                                console.log("Requested image");
+                                let image = new Canvas.Image();
+                                image.onload = function() {
+                                    let width = size.x-(imagePos.x2+textPad.left)-textPad.right;
+                                    let sf = (image.width < width ? 1 : width/image.width);
+                                    if (image.height*sf > maxImageHeight) {
+                                        sf = maxImageHeight/(image.height*sf);
                                     }
-                                    if (attempts == -1) {
+                                    ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
+                                    console.log("Drew image");
+                                    vpos += image.height*sf+15;
+                                    attachmentsLeft--;
+                                    console.log(attachmentsLeft);
+                                    if (attachmentsLeft == 0) con2();
+                                }
+                                image.src = new Buffer(b, "binary");
+                            });
+                        } else if (a.url.match(/\.jpg$/) || a.url.match(/\.jpeg$/i)) {
+                            request(a.url, {encoding: null}, function(e,r,b) {
+                                new exif.ExifImage({image: b}, function(e, exifData) {
+                                    let image = new Canvas.Image();
+                                    image.onload = function() {
                                         let width = size.x-(imagePos.x2+textPad.left)-textPad.right;
                                         let sf = (image.width < width ? 1 : width/image.width);
-                                        console.log("Will probably scale from "+image.width+" to "+image.width*sf);
                                         if (image.height*sf > maxImageHeight) {
                                             sf = maxImageHeight/(image.height*sf);
-                                            console.log("That's too tall, I'll scale it to "+image.width*sf+" instead");
                                         }
-                                        ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
-                                        vpos += image.height*sf+15;
-                                    }
-                                } else if (a.url.match(/\.jpg$/) || a.url.match(/\.jpeg$/i)) {
-                                    let imageBuffer;
-                                    let attempts = 3;
-                                    while (attempts > 0) {
-                                        try {
-                                            imageBuffer = syncRequest("GET", a.url).getBody();
-                                            attempts = -1;
-                                        } catch (e) {
-                                            console.log("Attachment/embed downloading failed: "+a.url);
-                                            attempts--;
+                                        console.log("Image orientation is "+exifData.image.Orientation);
+                                        if (exifData.image.Orientation == 6) {
+                                            ctx.rotate(90*Math.PI/180);
+                                            ctx.translate(vpos-(imagePos.x2+textPad.left), -(imagePos.x2+textPad.left)-vpos-image.height*sf);
+                                            ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
+                                            ctx.setTransform(1, 0, 0, 1, 0, 0);
+                                            vpos += image.width*sf+15;
+                                        } else {
+                                            ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
+                                            vpos += image.height*sf+15;
                                         }
-                                    }
-                                    if (attempts == -1) {
-                                        new exif.ExifImage({image: imageBuffer}, function(e, exifData) {
-                                            console.log(exifData.image.Orientation);
-                                        });
-                                    }
-                                }
-                            };
-                            
-                            // Divider
-                            ctx.lineWidth = 1;
-                            ctx.strokeStyle = "#52555C";
-                            ctx.beginPath();
-                            ctx.moveTo(linePad, vpos);
-                            ctx.lineTo(size.x-linePad, vpos);
-                            ctx.stroke();
-                            offset = vpos;
+                                        console.log("Drew image");
+                                        attachmentsLeft--;
+                                        console.log(attachmentsLeft);
+                                        if (attachmentsLeft == 0) con2();
+                                    };
+                                    image.src = new Buffer(b, "binary");
+                                });
+                            });
+                        } else {
+                            attachmentsLeft--;
+                            if (attachmentsLeft == 0) con2();
                         }
-                        completed++;
-                        console.log("Completed "+completed+" out of "+resarray.length);
+                    };
+
+                    function con2() {
+                        console.log("con2");
+                        // Divider
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = "#52555C";
+                        ctx.beginPath();
+                        ctx.moveTo(linePad, vpos);
+                        ctx.lineTo(size.x-linePad, vpos);
+                        ctx.stroke();
+                        con3();
                     }
-
-                    let correctedSize = {x: size.x, y: offset};
-
-                    let realCanvas = new Canvas(correctedSize.x, correctedSize.y);
-                    let realCtx = realCanvas.getContext('2d');
-                    realCtx.putImageData(ctx.getImageData(0, 0, correctedSize.x, correctedSize.y), 0, 0);
-
-                    let write = realCanvas.createPNGStream().pipe(fs.createWriteStream("pins.png"));
-                    write.on("finish", function() {
-                        bot.uploadFile({to: channelID, file: "pins.png", message: "Pins generated in "+((Date.now()-t)/1000).toFixed(1)+" seconds"});
-                    });
-                });
+                }
+            } else {
+                con3();
             }
-        });
+
+            function con3() {
+                offset = vpos;
+                completed++;
+                console.log("Completed "+completed+"; "+resarray.length+" remaining.");
+                ctxAppend();
+            }
+        }
     }
 }
 
@@ -864,6 +900,9 @@ function werewolf(user, userID, channelID, command) {
                         } else {
                             bot.sendMessage({to: wwgChannel, message: "<@127296623779774464> remind "+wwgTimer+" minutes GAME END"});
                         }
+                        setTimeout(function() {
+                            bot.sendMessage({to: wwgChannel, message: "30 seconds left! Make sure you've got a plan. If you're done already, you can just type **..wwg;end** to end the game early."});
+                        }, (wwgTimer*1000*60)-30);
                     }
                 }
                 var dict = "";
