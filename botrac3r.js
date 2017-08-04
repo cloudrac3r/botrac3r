@@ -10,7 +10,14 @@ let path = require("path");
 let Canvas = require("canvas");
 let exif = require("exif");
 let syncRequest = require("sync-request");
-let botToken = fs.readFileSync("/home/pi/Documents/botrac3r/token.txt", "utf8").split("\n")[0];
+let ytdl = require("youtube-dl");
+let [ botToken, ytToken ] = fs.readFileSync("token.txt", "utf8").split("\n");
+let epigamCookies;
+try {
+    epigamCookies = fs.readFileSync("epigam-cookies.txt", "utf8").split("\n")[0];
+} catch (e) {
+    console.log("Couldn't load the Epigam cookies file. You won't be able to post to Epigam from this bot.");
+}
 var bot = new Discord.Client({
     token: botToken,
     autorun: true
@@ -19,25 +26,106 @@ var bot = new Discord.Client({
 const botAdmins = ["176580265294954507", "117661708092309509", "238459957811478529"];
 const warPeople = ["112767329347104768", "176580265294954507", "112760500130975744", "117661708092309509"];
 const channelPinList = {
-    "112760669178241024": "331390333810376704",
-    "160197704226439168": "331390333810376704",
-    "249968792346558465": "331390333810376704",
-    "122155380120748034": "331390333810376704",
-    "176333891320283136": "331390333810376704",
-    "134077753485033472": "331390333810376704",
-    "189898393705906177": "331390333810376704",
-    "265617582126661642": "331390333810376704",
-    "288058913985789953": "331390333810376704",
-    "288882953314893825": "331390333810376704",
-    "265998010092093441": "331390333810376704",
-    "196455508146651136": "331390333810376704",
-    "132423337019310081": "331390333810376704",
-    "134477188899536898": "331390333810376704",
-    "266767590641238027": "331390333810376704",
-    "121380024812044288": "331390333810376704",
-    "130176644093575168": "331390333810376704",
-    "191487489943404544": "334553412698112002",
-    "113414562417496064": "334553412698112002"
+    "112760669178241024": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "160197704226439168": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "249968792346558465": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "122155380120748034": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "176333891320283136": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "134077753485033472": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "189898393705906177": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "265617582126661642": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "288058913985789953": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "288882953314893825": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "265998010092093441": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "196455508146651136": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "132423337019310081": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "134477188899536898": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "266767590641238027": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "121380024812044288": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "130176644093575168": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005"
+    },
+    "191487489943404544": {
+        channel: "334553412698112002",
+        forum: "54",
+        topic: "1005"
+    },
+    "113414562417496064": {
+        channel: "334553412698112002",
+        forum: "58",
+        topic: "1576"
+    },
+    "340365770951360524": {
+        channel: "331390333810376704",
+        forum: "58",
+        topic: "1576"
+    }
 };
 let warPeopleOnline = false;
 let lastPing = 0;
@@ -77,6 +165,17 @@ var yesnoOptions = ["Yes.", "No.", "Yes.", "No.", "Yes, definitely!", "Yes, of c
 
 let characters = {};
 
+let MBqueue = [];
+let MBplaying = false;
+let MBsearches = [];
+let MBmusic;
+let MBfRegex = /https?:\/\/[^\s]{2,}(\.[^\s]{2,})+\/[^\s]+\.(mp3|ogg)/;
+
+let epigamPostHeaders = {
+    "Cookie": epigamCookies,
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36 OPR/45.0.2552.898",
+};
+
 function userIDToNick(userID, serverID) {
     if (serverID) { // If a server was specified...
         return (bot.servers[serverID].members[userID].nick || bot.users[userID].username); // Return the nickname if there is one, otherwise return the username
@@ -93,6 +192,11 @@ function mentionToID(string) {
 function pad(string, length, filler) {
     if (typeof(string) == "number") string = string.toString();
     return string+yes(filler, length-string.length);
+}
+
+function rpad(string, length, filler) {
+    if (typeof(string) == "number") string = string.toString();
+    return yes(filler, length-string.length)+string;
 }
 
 function reverse(string) {
@@ -128,53 +232,292 @@ function plural(word, number) {
     return word;
 }
 
+// Play music in the same voice channel as the command invoker
+function playMusic(userID, channelID, command) {
+    if (command.split(";")[1] == "stop") {
+        bot.leaveVoiceChannel(bot.servers[bot.channels[channelID].guild_id].members[bot.id].voice_channel_id);
+        return;
+    }
+    let url = (command.split(";")[1] || "https://www.youtube.com/watch?v=nknYgoMEm5s");
+    url = url.replace(/ /g, "");
+    let vcid = bot.servers[bot.channels[channelID].guild_id].members[userID].voice_channel_id;
+    if (!vcid) {
+        bot.sendMessage({to: channelID, message: "Enter a voice channel first!"});
+        return;
+    }
+    if (userID != "176580265294954507") return; // Only cloudrac3r can use this command
+    if (false) { // If the bot is already in a voice channel,
+        con1(); // just continue
+    } else { // Otherwise,
+        bot.joinVoiceChannel(vcid, function(e,r) { // Join the voice channel
+            if (bot.servers[bot.channels[channelID].guild_id].members[bot.id].voice_channel_id == vcid) {
+                console.log("Joined voice channel");
+                if (url.match(/youtube\.com\/playlist/)) {
+                    console.log(url.match(/list=(.+)/)[1]);
+                    request("https://www.googleapis.com/youtube/v3/playlistItems/?playlistId="+url.match(/list=(.+)/)[1]+"&part=snippet%2CcontentDetails&maxResults=25&key="+ytToken, function(e,r,b) {
+                        if (e) {
+                            bot.leaveVoiceChannel(bot.servers[bot.channels[channelID].guild_id].members[bot.id].voice_channel_id);
+                        } else {
+                            let a = [];
+                            for (let v of JSON.parse(b).items) {
+                                a.push(v.contentDetails.videoId);
+                            }
+                            if (command.split(";")[2]) a = a.slice(command.split(";")[2]);
+                            con1(a);
+                        }
+                    });
+                } else {
+                    con1(); // then continue
+                }
+            } else {
+                console.log("Couldn't join voice channel.");
+            }
+        });
+    }
+    function con1(list) { // Continue here
+        bot.getAudioContext(vcid, function(e,s) { // Not sure what this does but it's probably important
+            if (e) { // Errors
+                console.log(e);
+            } else {
+                console.log("Got audio context");
+                if (!list) list = [url];
+                con3(s, list, 0);
+                function con3(s, list, t) {
+                    let output = "[new!] Received "+t+", changing to ";
+                    t = Math.floor(Math.random()*9000+1000);
+                    console.log(output+t);
+                    let item = list.splice(0,1)[0];
+                    let music = ytdl(item, ["-x", "--format=worst", "--audio-format=mp3"], {maxBuffer: Infinity}); // Stream video
+                    music.pipe(s, {end: false});
+                    //fs.createReadStream("anemoi.mp3").pipe(s, {end: false}); // Pipe to voice channel
+                    console.log("["+t+"] Started streaming "+item);
+                    s.once("done", function() { // When stream ends
+                        if (list.length == 0) {
+                            console.log("["+t+"] Stream ended.");
+                            bot.leaveVoiceChannel(bot.servers[bot.channels[channelID].guild_id].members[bot.id].voice_channel_id); // Leave voice channel
+                        } else {
+                            console.log("["+t+"] "+list.length+" items left in list, continuing");
+                            con3(s, list, t);
+                            delete s;
+                            delete music;
+                        }
+                    });
+                }
+            }
+        });
+    }
+}
+
+function MBaddToQueue(vID, userID, channelID, next) {
+    if (typeof(vID) == "string") {
+        if (next) {
+            MBqueue.splice(0, 0, vID);
+        } else {
+            MBqueue.push(vID);
+        }
+        bot.sendMessage({to: channelID, message: "**"+userIDToNick(userID, bot.channels[channelID].guild_id)+"** added a video to the queue. The queue now contains **"+MBqueue.length+"** "+plural("item", MBqueue.length)+"."});
+    } else if (typeof(vID) == "object") {
+        if (next) {
+            MBqueue = vID.concat(MBqueue);
+        } else {
+            MBqueue = MBqueue.concat(vID);
+        }
+        bot.sendMessage({to: channelID, message: "**"+userIDToNick(userID, bot.channels[channelID].guild_id)+"** added a playlist of "+vID.length+" videos to the queue. The queue now contains **"+MBqueue.length+"** "+plural("item", MBqueue.length)+"."});
+    }
+    if (!MBplaying) {
+        new Promise(function(con, can) {
+            if (false) { //bot.servers[bot.channels[channelID].guild_id].members[bot.id].voice_channel_id) {
+                con();
+            } else {
+                bot.joinVoiceChannel(bot.servers[bot.channels[channelID].guild_id].members[userID].voice_channel_id, function(e,r) {
+                    if (e) {
+                        bot.sendMessage({to: channelID, message: "I couldn't join your voice channel. Maybe you're not in one?\nJoin a voice channel and use `play start` to play the current queue."});
+                        can(e);
+                    } else {
+                        con(r);
+                    }
+                });
+            }
+        }).then(function() {
+            bot.getAudioContext(bot.servers[bot.channels[channelID].guild_id].members[bot.id].voice_channel_id, function(e,s) {
+                if (!e) {
+                    MBplayNext(s, channelID);
+                } else {
+                    console.log(e);
+                }
+            });
+        });
+    }
+}
+
+function MBplayNext(stream, channelID) {
+    MBplaying = true;
+    let item = MBqueue.splice(0, 1)[0];
+    console.log("Playing "+item);
+    if (item.match(MBfRegex)) {
+        bot.sendMessage({to: channelID, message: "Attempting to play an audio file. Some features are disabled."}, function(e,r) {
+            request(item).pipe(stream, {end: false});
+            stream.once("done", function() {
+                if (MBqueue.length == 0) {
+                    bot.leaveVoiceChannel(bot.servers[bot.channels[channelID].guild_id].members[bot.id].voice_channel_id);
+                    MBplaying = false;
+                    bot.sendMessage({to: channelID, message: "The queue is now empty; stopped playing."});
+                } else {
+                    MBplayNext(stream, channelID);
+                }
+                bot.deleteMessage({channelID: channelID, messageID: r.id});
+            });
+        });
+    } else {
+        MBmusic = ytdl(item, ["-x", "--format=worst", "--audio-format=mp3"], {maxBuffer: Infinity}); // Stream video
+        bot.sendMessage({to: channelID, message: "Downloading video data..."}, function(e,r) {
+            //console.log(JSON.stringify(r));
+            let updateDisplay;
+            let finished = "";
+            MBmusic.on("info", function(info) {
+                let minutes, seconds;
+                if (info.duration.match(/:/)) {
+                    minutes = info.duration.split(":")[0];
+                    seconds = rpad(info.duration.split(":")[1], 2, "0");
+                } else {
+                    minutes = "0";
+                    seconds = rpad(info.duration, 2, "0");
+                }
+                let started = Date.now();
+                updateDisplay = setInterval(function() {
+                    let elapsed = new Date(Date.now()-started);
+                    bot.editMessage({channelID, messageID: r.id, message: "Now playing: **"+info.fulltitle+"** by **"+info.uploader+"** `["+elapsed.getUTCMinutes()+":"+rpad(elapsed.getUTCSeconds(), 2, "0")+" / "+minutes+":"+seconds+"]`"});
+                }, 5000);
+                bot.editMessage({channelID, messageID: r.id, message: "Now playing: **"+info.fulltitle+"** by **"+info.uploader+"** `[0:00 / "+minutes+":"+seconds+"]`"});
+                finished = "Finished playing: **"+info.fulltitle+"** by **"+info.uploader+"** `["+minutes+":"+seconds+" / "+minutes+":"+seconds+"]`";
+                MBmusic.pipe(stream, {end: false});
+            });
+            /*} catch (e) {
+                bot.sendMessage({to: channelID, message: "That song (https://youtu.be/"+item+") couldn't be played.\nWill attempt to continue."});
+                clearInterval(updateDisplay);
+                MBplayNext(stream, channelID);
+            }*/
+            stream.once("done", function() {
+                clearInterval(updateDisplay);
+                if (MBqueue.length == 0) {
+                    bot.leaveVoiceChannel(bot.servers[bot.channels[channelID].guild_id].members[bot.id].voice_channel_id);
+                    MBplaying = false;
+                    bot.sendMessage({to: channelID, message: "The queue is now empty; stopped playing."});
+                } else {
+                    MBplayNext(stream, channelID);
+                }
+                bot.deleteMessage({channelID: channelID, messageID: r.id});
+            });
+        });
+    }
+}
+
+// Create a post on the Epigam forums.
+function postToEpigam(channelID, forum, topic, subject, message) {
+    epigamPostHeaders["Referer"] = "http://epigam.prophpbb.com/topic"+topic+".html";
+    request({
+        url: "http://epigam.prophpbb.com/posting.php?mode=reply&f="+forum+"&t="+topic,
+        headers: epigamPostHeaders,
+        method: "GET"
+    }, function(error, response, body) {
+        if (error) {
+            console.log("Error while fetching posting form");
+        } else {
+            let pf = /<input type="hidden" name="([a-z_]+)" value="([0-9a-f]+)"/g
+            let result;
+            let data = {
+                "subject": subject,
+                "addbbcode20": 100,
+                "message": message,
+                "attach_sig": "on",
+                "post": "Submit"
+            };
+            while ((result = pf.exec(body)) != null) {
+                data[result[1]] = result[2];
+            }
+            if (data.form_token) {
+                let newHeaders = Object.assign(epigamPostHeaders, {"Referer": "http://epigam.prophpbb.com/posting.php?mode=reply&f="+forum+"&t="+topic});
+                request.post({
+                    url: "http://epigam.prophpbb.com/posting.php?mode=reply&f="+forum+"&t="+topic,
+                    headers: newHeaders,
+                    method: "POST",
+                    form: data
+                }, function(error, response, body) {
+                    if (error) {
+                        console.log("Error: "+error);
+                    } else {
+                        if (body.match(/This message has been posted successfully\./)) {
+                            bot.sendMessage({to: channelID, message: "Post created successfully! "+body.match(/href="(http:\/\/epigam.prophpbb.com\/.+)">View/)[1]});
+                        } else {
+                            fs.writeFileSync("final.html", body);
+                            bot.uploadFile({to: channelID, message: "I couldn't create that post, for whatever reason.```\n"+JSON.stringify(data, null, 4)+"```", file: "final.html"});
+                        }
+                    }
+                });
+            } else {
+                fs.writeFileSync("final.html", body);
+                bot.uploadFile({to: channelID, message: "I couldn't post that message, for whatever reason.", file: "final.html"});
+            }
+        }
+    });
+}
+
 function sendToPinsChannel(channelID, pinneeID, toPin, pinnerID) {
     if (!channelPinList[channelID]) {
         bot.sendMessage({to: channelID, message: "Sorry, I couldn't pin this message because this channel has no associated pins channel to send the message to. Time to nag <@176580265294954507>."});
         return;
     }
     if (pinneeID == pinnerID) {
-        bot.removeReaction({channelID: channelID, messageID: toPin.id, userID: pinnerID, reaction: {name: "markedforpinning", id: "292130109215735808"}});
         bot.sendMessage({to: channelID, message: "<@"+pinnerID+"> No you fucking don't. Get the fuck out of here, self-pinning trash."}, function() {
             bot.sendMessage({to: channelID, message: "s!drop PSA: "+bot.users[pinnerID].username+" is self-pinning trash."}, function() {
                 bot.sendMessage({to: channelID, message: "s!tackle <@"+pinnerID+">"});
             });
         });
-    } else {
-        let highest = 0;
-        let highestID = bot.channels[channelID].guild_id;
-        for (let r of bot.servers[bot.channels[channelID].guild_id].members[pinneeID].roles) {
-            if (bot.servers[bot.channels[channelID].guild_id].roles[r].color != 0 && bot.servers[bot.channels[channelID].guild_id].roles[r].position > highest) {
-                highest = bot.servers[bot.channels[channelID].guild_id].roles[r].position;
-                highestID = r;
-            }
-        }
-        let image = "";
-        let message;
-        if (toPin.attachments[0]) image = toPin.attachments[0].url;
-        if (toPin.embeds[0]) if (toPin.embeds[0].type == "image") image = toPin.embeds[0].url;
-        if (toPin.attachments.length+toPin.embeds.length > 1) message = "hidden attachments";
-        let t = new Date(toPin.timestamp);
-        let name = bot.users[pinneeID].username;
-        let nick = userIDToNick(pinneeID, bot.channels[channelID].guild_id);
-        bot.sendMessage({to: channelPinList[channelID], embed: {
-            author: {
-                name: (nick != name ? (nick+" ("+name+")") : (name)),
-                icon_url: "https://cdn.discordapp.com/avatars/"+pinneeID+"/"+bot.users[pinneeID].avatar+".jpg"
-            },
-            color: bot.servers[bot.channels[channelID].guild_id].roles[highestID].color,
-            description: toPin.content,
-            image: {
-                url: image
-            },
-            footer: {
-                text: "#"+bot.channels[channelID].name+" | "+(message || toPin.id)
-            },
-            timestamp: t.toJSON()
-        }}, function(e) {
-            if (!e) bot.sendMessage({to: channelID, message: "Okay, I pinned **"+userIDToNick(pinneeID, bot.channels[channelID].guild_id)+"**'s message, as per the request of **"+userIDToNick(pinnerID, bot.channels[channelID].guild_id)+"**."});
-        });
     }
+    let highest = 0;
+    let highestID = bot.channels[channelID].guild_id;
+    for (let r of bot.servers[bot.channels[channelID].guild_id].members[pinneeID].roles) {
+        if (bot.servers[bot.channels[channelID].guild_id].roles[r].color != 0 && bot.servers[bot.channels[channelID].guild_id].roles[r].position > highest) {
+            highest = bot.servers[bot.channels[channelID].guild_id].roles[r].position;
+            highestID = r;
+        }
+    }
+    let image = "";
+    let message;
+    if (toPin.attachments[0]) image = toPin.attachments[0].url;
+    if (toPin.embeds[0]) if (toPin.embeds[0].type == "image") image = toPin.embeds[0].url;
+    if (toPin.attachments.length+toPin.embeds.length > 1) message = "hidden attachments";
+    let t = new Date(toPin.timestamp);
+    let name = bot.users[pinneeID].username;
+    let nick = userIDToNick(pinneeID, bot.channels[channelID].guild_id);
+    bot.sendMessage({to: channelPinList[channelID].channel, embed: {
+        author: {
+            name: (nick != name ? (nick+" ("+name+")") : (name)),
+            icon_url: "https://cdn.discordapp.com/avatars/"+pinneeID+"/"+bot.users[pinneeID].avatar+".jpg"
+        },
+        color: bot.servers[bot.channels[channelID].guild_id].roles[highestID].color,
+        description: toPin.content,
+        image: {
+            url: image
+        },
+        footer: {
+            text: "#"+bot.channels[channelID].name+" | "+(message || toPin.id)
+        },
+        timestamp: t.toJSON()
+    }}, function(e) {
+        if (!e) bot.getPinnedMessages({channelID: channelID}, function(e,r) {
+            if (!e) {
+                bot.sendMessage({to: channelID, message: "Okay, I pinned **"+userIDToNick(pinneeID, bot.channels[channelID].guild_id)+"**'s message, as per the request of **"+userIDToNick(pinnerID, bot.channels[channelID].guild_id)+"**. This channel now has "+r.length+"/50 pinned messages."});
+                if (r.length == 50) {
+                    let b = [];
+                    for (let i of r.slice(25)) {
+                        b.push(i.id);
+                    }
+                    genPinImage(channelID, b);
+                }
+            };
+        });
+    });
 }
 
 // Given a text string, inserts line breaks to make it as wide as possible but thinner than the width.
@@ -226,7 +569,7 @@ function fixMentions(t) {
         t.content = t.content.replace(/<@!?[0-9]+>/, "|ml|@"+t.mentions[index].username+"|ml|");
         index++;
     }
-    t.content = t.content.replace(/(https?...([A-Za-z0-9]+\.)+[A-Za-z0-9]+[-A-Za-z0-9/_%&?".]+)/g, "|ml|$1|ml|");
+    t.content = t.content.replace(/(https?...([A-Za-z0-9]+\.)+[A-Za-z0-9]+[-A-Za-z0-9/_%&?".=]+)/g, "|ml|$1|ml|");
     return t;
 }
 
@@ -328,7 +671,14 @@ function genPinImage(channelID, messageArr) {
 
             let write = realCanvas.createPNGStream().pipe(fs.createWriteStream("pins.png"));
             write.on("finish", function() {
-                bot.uploadFile({to: channelID, file: "pins.png", message: "Pins generated in "+((Date.now()-t)/1000).toFixed(1)+" seconds"});
+                bot.uploadFile({to: channelID, file: "pins.png", message: "Pins generated in "+((Date.now()-t)/1000).toFixed(1)+" seconds"}, function(e,r) {
+                    if (!e) {
+                        postToEpigam(channelID, channelPinList[channelID].forum, channelPinList[channelID].topic, "Discord Quotes", "Here's the latest batch of pins, fresh from the oven. Be sure to change this message to say something less lame as soon as possible.\n\n[img]"+r.attachments[0].url+"[/img]");
+                        //bot.sendMessage({to: channelID, message: "Epigam uploads are temporarily disabled. <@176580265294954507> if the pin imge turned out okay then enable it!"});
+                    } else {
+                        bot.sendMessage({to: channelID, message: "Uhoh. I couldn't upload the file. Sup <@176580265294954507>?"});
+                    }
+                });
             });
         } else {
             let res = resarray.splice(0, 1)[0];
@@ -1624,6 +1974,7 @@ bot.on("ready", function() { // When the bot comes online...
         userTimes = JSON.parse(fs.readFileSync("/home/pi/Documents/usertimes.txt", "utf8"));
         //console.log("Loaded user times: "+JSON.stringify(userTimes, null, 4));
         setInterval(function(){bot.sendMessage({to: "330164254969823233", message: "<@113852329832218627>"})}, 30000);
+        bot.leaveVoiceChannel(bot.servers["112760669178241024"].members["176580265294954507"].voice_channel_id);
     }
     if (botTestingMode) {
         bot.setPresence({game: {name: "type ..help; for help!"}});
@@ -1638,10 +1989,16 @@ bot.on("ready", function() { // When the bot comes online...
 
 bot.on("message", function(user, userID, channelID, message, event) {
     // Manage incoming messages and take appropriate action.
+    if (event.d.type == 6 && channelID == "304384243130171395" && userID == bot.id) {
+        bot.deleteMessage({channelID: channelID, messageID: event.d.id});
+    }
+    if (event.d.type == 6 && userID == bot.id) { // Bail! Bail!
+        return;
+    }
     if (event.d.type == 6 && bot.channels[channelID].guild_id == "112760669178241024") {
         let realPin = true;
         for (let c in channelPinList) {
-            if (channelPinList[c] == channelID) {
+            if (channelPinList[c].channel == channelID) {
                 realPin = false;
                 bot.deleteMessage({channelID: channelID, messageID: event.d.id});
                 bot.getPinnedMessages({channelID: channelID}, function(e,r) {
@@ -1656,6 +2013,13 @@ bot.on("message", function(user, userID, channelID, message, event) {
                 });
             });
         }
+    }
+    if (channelID == "304384243130171395" && userID == "113457314106740736" && message.match(/round/i)) {
+        bot.getPinnedMessages({channelID: channelID}, function(e,a) {
+            bot.deletePinnedMessage({channelID: channelID, messageID: a[a.length-1].id}, function(e,r) {
+                bot.pinMessage({channelID: channelID, messageID: event.d.id});
+            });
+        });
     }
     if (channelID == "304384243130171395" && warPeople.indexOf(userID) != -1) {
         getTurnInfo(function(response) {
@@ -1757,6 +2121,9 @@ bot.on("message", function(user, userID, channelID, message, event) {
                     }
                 }
                 break;
+            case "..music":
+                playMusic(userID, channelID, message);
+                break;
             }
         }
     }
@@ -1789,6 +2156,101 @@ bot.on("message", function(user, userID, channelID, message, event) {
         fs.writeFile("/var/www/html/stats.js", "let wwgStats = "+JSON.stringify(wwgStats)+";");
         bot.sendMessage({to: channelID, message: "OK."});
     }*/
+    if (message.match(/play/i)) {
+        let vRegexes = [/https?:\/\/.*youtube\.co.*\/watch\?.*v=([-_a-zA-Z0-9]{10,})/, /https?:\/\/youtu\.be\/([-_a-zA-Z0-9]{10,})/];
+        let pRegexes = [/https?:\/\/.*youtube\.co.*\/playlist\?.*list=([-_a-zA-Z0-9]+)/];
+        let started = false;
+        for (let r = 0; r < vRegexes.length; r++) {
+            if (message.match(vRegexes[r]) && !started) {
+                started = true;
+                MBaddToQueue(message.match(vRegexes[r])[1], userID, channelID, message.match(/next/i));
+                r = vRegexes.length;
+            }
+        }
+        if (message.match(pRegexes[0]) && !started) {
+            let a = [];
+            fetchPlaylist();
+            function fetchPlaylist(token) {
+                request("https://www.googleapis.com/youtube/v3/playlistItems/?playlistId="+message.match(pRegexes[0])[1]+"&part=snippet%2CcontentDetails&maxResults=50&key="+ytToken+(token ? "&pageToken="+token : ""), function(e,r,b) {
+                    if (!e) {
+                        if (b.error) {
+                            console.log(JSON.parse(b));
+                        } else {
+                            for (let v of JSON.parse(b).items) {
+                                a.push(v.contentDetails.videoId);
+                            }
+                            if (JSON.parse(b).nextPageToken) {
+                                bot.simulateTyping(channelID);
+                                fetchPlaylist(JSON.parse(b).nextPageToken);
+                            } else {
+                                if (message.match(/item ([0-9]+)/i)) a = a.slice(parseInt(message.match(/item ([0-9]+)/i)[1])-1, 1);
+                                if (message.match(/\s([0-9+])\s?-\s?([0-9+])/)) a = a.slice(parseInt(message.match(/\s([0-9+])\s?-\s?([0-9+])/)[1])-1, parseInt(message.match(/\s([0-9+])\s?-\s?([0-9+])/)[2]));
+                                if (message.match(/start[a-z]* at ([0-9]+)/i)) a = a.slice(parseInt(message.match(/start[a-z]* at ([0-9]+)/i)[1])-1);
+                                if (message.match(/random/i)) {
+                                    let c = [];
+                                    while (a.length > 0) {
+                                        c.push(a[Math.floor(Math.random()*a.length)]);
+                                    }
+                                    a = c;
+                                }
+                                started = true;
+                                MBaddToQueue(a, userID, channelID, message.match(/next/i));
+                            }
+                        }
+                    } else {
+                        console.log(e);
+                    }
+                });
+            }
+        }
+        if (message.match(MBfRegex) && !started) {
+            started = true;
+            MBaddToQueue(message.match(MBfRegex)[0], userID, channelID, message.match(MBfRegex)[0]);
+        }
+        if (message.match(/start/i) && !started) {
+            started = true;
+            MBaddToQueue(undefined, userID, channelID);
+        }
+    }
+    let search = message.match(/^(youtube|yt) search (.{4,})$/i);
+    if (search) {
+        request({method: "GET", url: "https://www.googleapis.com/youtube/v3/search/", qs: {
+            q: search[2],
+            part: "snippet",
+            type: "video",
+            maxResults: "1",
+            key: ytToken
+        }}, function (e,r,b) {
+            if (JSON.parse(b).error) {
+                console.log(b);
+            } else {
+                b = JSON.parse(b).items[0];
+                bot.sendMessage({to: channelID, embed: {
+                    title: "YouTube search results",
+                    description: "Query: \""+search[2]+"\"\nDisplaying the first result only",
+                    fields: [
+                        {
+                            name: "Title",
+                            value: b.snippet.title,
+                        },{
+                            name: "Uploader",
+                            value: b.snippet.channelTitle,
+                        }
+                    ],
+                    image: {
+                        url: b.snippet.thumbnails.default.url
+                    },
+                    color: 0xE32E28,
+                    footer: {
+                        text: "Click the play reaction to queue this video"
+                    }
+                }}, function(e,r) { if (!e) {
+                    bot.addReaction({channelID: channelID, messageID: r.id, reaction: "▶"});
+                    MBsearches.push({url: b.id.videoId, messageID: r.id});
+                }});
+            }
+        });
+    }
 });
 
 bot.on("presence", function(user, userID, status, game, event) {
@@ -1797,15 +2259,6 @@ bot.on("presence", function(user, userID, status, game, event) {
         let pings = "";
         for (let i in bot.servers["112760669178241024"].members) pings += "<@"+i+"> ";
         bot.sendMessage({to: "112760669178241024", message: pings+" Didn't you realise that our god, dlcs18, has finally and truely come?"});
-    }
-    if (userID == "113340068197859328" && status == "online") {
-        bot.getPinnedMessages({channelID: "112760669178241024"}, function(e,r) {
-            if (r != undefined) {
-                if (r.length == 50) {
-                    bot.sendMessage({to: "113340068197859328", message: "Hey <@113340068197859328>! There's "+r.length+" pinned messages on Epicord right now, *but you've been replaced.*\nYou'll still have to clear them out to remove this message though <:hippo:230201364309868544>. Or tell cloudrac3r to remove it entirely."});
-                }
-            }
-        });
     }
     setTimeout(function() {
         let allOnline = true;
@@ -1837,17 +2290,30 @@ bot.on("disconnect", function() {
 });
 
 bot.on("any", function(event) {
-    if (event.t == "MESSAGE_REACTION_ADD") if (event.d.emoji.name == "markedforpinning" && event.d.emoji.id == "292130109215735808" && bot.channels[event.d.channel_id].guild_id == "112760669178241024") {
-        bot.getMessage({channelID: event.d.channel_id, messageID: event.d.message_id}, function(err, res) {
-            if (!err) {
-                let ok = true;
-                for (let r of res.reactions) {
-                    if (r.emoji.name == "markedforpinning" && r.count != 1) ok = false;
+    if (event.t == "MESSAGE_REACTION_ADD") {
+        if (event.d.emoji.name == "markedforpinning" && event.d.emoji.id == "292130109215735808" && bot.channels[event.d.channel_id].guild_id == "112760669178241024") {
+            bot.getMessage({channelID: event.d.channel_id, messageID: event.d.message_id}, function(err, res) {
+                if (!err) {
+                    let ok = true;
+                    for (let r of res.reactions) {
+                        if (r.emoji.name == "markedforpinning" && r.count != 1) ok = false;
+                    }
+                    if (ok) {
+                        sendToPinsChannel(event.d.channel_id, res.author.id, res, event.d.user_id);
+                    }
                 }
-                if (ok) {
-                    sendToPinsChannel(event.d.channel_id, res.author.id, res, event.d.user_id);
+            });
+        }
+        if (event.d.emoji.name == "▶" && event.d.user_id != bot.id) {
+            s = 0;
+            while (s < MBsearches.length) {
+                if (MBsearches[s].messageID == event.d.message_id) {
+                    MBaddToQueue(MBsearches[s].url, event.d.user_id, event.d.channel_id);
+                    MBsearches.splice(s, 1);
+                    s = MBsearches.length;
                 }
+                s++;
             }
-        });
+        }
     }
 });
