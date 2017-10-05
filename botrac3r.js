@@ -13,6 +13,17 @@ let syncRequest = require("sync-request");
 let ytdl = require("youtube-dl");
 let [ botToken, ytToken ] = fs.readFileSync("token.txt", "utf8").split("\n");
 let epigamCookies;
+let cytubeCurrentVideo = "";
+let cytubeAnnouncementChannel = "312054608535224320";
+let cytubeCheck = true;
+let cytubeLastPing = Date.now();
+let cytubePingDelay = 600000;
+try {
+    if (fs.readFileSync("./cytube.txt").toString().includes("false")) {
+        console.log("CyTube announcements are DISABLED!");
+        cytubeCheck = false;
+    }
+} catch (e) {};
 try {
     epigamCookies = fs.readFileSync("epigam-cookies.txt", "utf8").split("\n")[0];
 } catch (e) {
@@ -23,108 +34,273 @@ var bot = new Discord.Client({
     autorun: true
 });
 
+const botBlacklist = ["206627682807578624", "197686571141431297"];
+
 const botAdmins = ["176580265294954507", "117661708092309509", "238459957811478529"];
 const warPeople = ["112767329347104768", "176580265294954507", "112760500130975744", "117661708092309509"];
+const pinServers = ["112760669178241024", "338363692955729930"];
 const channelPinList = {
+    // Epicord
     "112760669178241024": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "main"
     },
     "160197704226439168": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the bot channel"
+    },
+    "361364140448808960": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005",
+        name: "the Hippo Clicker discussion channel"
     },
     "249968792346558465": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the art channel"
     },
     "122155380120748034": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the programming channel"
     },
     "176333891320283136": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the Wonderland channel"
     },
     "134077753485033472": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the Minecraft channel"
     },
     "189898393705906177": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the rhythm game channel"
     },
     "265617582126661642": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the music channel"
     },
     "288058913985789953": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the gaming channel"
     },
     "288882953314893825": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the Team Fortress 2 channel"
     },
     "265998010092093441": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the Marble Blast channel"
     },
     "196455508146651136": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the Toontown channel"
     },
     "132423337019310081": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
-    },
-    "134477188899536898": {
-        channel: "331390333810376704",
-        forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the anime channel"
     },
     "266767590641238027": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the game development channel"
     },
     "121380024812044288": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the comics channel"
     },
     "130176644093575168": {
         channel: "331390333810376704",
         forum: "54",
-        topic: "1005"
+        topic: "1005",
+        name: "the Phoenix Wright: Ace Attorney channel (← did I spell this right?)"
+    },
+    "134477188899536898": {
+        channel: "ignore",
+        name: "the Steven Universe channel"
     },
     "191487489943404544": {
         channel: "334553412698112002",
-        forum: "54",
-        topic: "1005"
+        forum: "58",
+        topic: "1576",
+        name: "the regular porn channel"
+    },
+    "359903425074561024": {
+        channel: "334553412698112002",
+        forum: "58",
+        topic: "1576",
+        name: "the dream channel"
     },
     "113414562417496064": {
         channel: "334553412698112002",
         forum: "58",
-        topic: "1576"
+        topic: "1576",
+        name: "the furry porn channel"
     },
-    "340365770951360524": {
+    "312054608535224320": {
         channel: "331390333810376704",
-        forum: "58",
-        topic: "1576"
+        forum: "54",
+        topic: "1005",
+        name: "the CyTube channel"
+    },
+    "354832988980379650": {
+        channel: "331390333810376704",
+        forum: "54",
+        topic: "1005",
+        name: "the rules channel"
+    },
+    // Evilgrapez's server
+    "338363692955729930": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "338363692955729931": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "338369236315406346": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "338695336778268673": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "338695440876830720": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "338695597924024332": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "338695693642366977": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "338697507829710848": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "342065960393375746": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "342472805369249792": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "343140413743300617": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "343143822399897610": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "343448338298961921": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "343789503216877569": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "343790381470711832": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "343812331416977419": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "344259097182470155": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "345386852062330882": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "345777627296038923": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "346123905590624257": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "346447838370070529": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "347119389495001088": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "347473580793266178": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "347585973649014796": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "348294995654082560": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "349549541336547329": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "349552103074824192": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "349612457465085972": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "350076994450358282": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "350106549907357697": {
+        "channel": "349612457465085972",
+        "limit": 49
+    },
+    "350121558527836160": {
+        "channel": "349612457465085972",
+        "limit": 49
     }
 };
 let warPeopleOnline = false;
@@ -153,6 +329,8 @@ var wwgWaitingPlayers = [];
 var wwgOldPlayers = [];
 var wwgOldPlayerNames = [];
 var wwgTimer = 5;
+let wwgWarningTimeout;
+let wwgEndingTimeout;
 var wwgStrict = true;
 var wwgCurrentGameID = 0;
 var wwgStats = {};
@@ -171,10 +349,16 @@ let MBsearches = [];
 let MBmusic;
 let MBfRegex = /https?:\/\/[^\s]{2,}(\.[^\s]{2,})+\/[^\s]+\.(mp3|ogg)/;
 
+let otBlacklist = {};
+
 let epigamPostHeaders = {
     "Cookie": epigamCookies,
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36 OPR/45.0.2552.898",
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.78 Safari/537.36 OPR/47.0.2631.55",
+    "DNT": "1",
+    //"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-GB,en-US"
 };
+let epigamUploaders = ["176580265294954507", "113340068197859328", "116718249567059974", "112814914019614720", "117661708092309509"];
 
 function userIDToNick(userID, serverID) {
     if (serverID) { // If a server was specified...
@@ -275,7 +459,7 @@ function playMusic(userID, channelID, command) {
         });
     }
     function con1(list) { // Continue here
-        bot.getAudioContext(vcid, function(e,s) { // Not sure what this does but it's probably important
+        bot.getAudioContext({channelID: vcid, stereo: true}, function(e,s) { // Not sure what this does but it's probably important
             if (e) { // Errors
                 console.log(e);
             } else {
@@ -287,9 +471,10 @@ function playMusic(userID, channelID, command) {
                     t = Math.floor(Math.random()*9000+1000);
                     console.log(output+t);
                     let item = list.splice(0,1)[0];
-                    let music = ytdl(item, ["-x", "--format=worst", "--audio-format=mp3"], {maxBuffer: Infinity}); // Stream video
+                    let music = ytdl(item, ["-x", "--format=best", "--audio-format=mp3", "--"], {maxBuffer: Infinity}); // Stream video
                     music.pipe(s, {end: false});
-                    //fs.createReadStream("anemoi.mp3").pipe(s, {end: false}); // Pipe to voice channel
+                    fs.createReadStream("/home/pi/Downloads/cdj.mp3").pipe(s, {end: false}); // Pipe to voice channel
+                    bot.playAudioFile("/home/pi/Downloads/cdj.mp3");
                     console.log("["+t+"] Started streaming "+item);
                     s.once("done", function() { // When stream ends
                         if (list.length == 0) {
@@ -369,7 +554,7 @@ function MBplayNext(stream, channelID) {
             });
         });
     } else {
-        MBmusic = ytdl(item, ["-x", "--format=worst", "--audio-format=mp3"], {maxBuffer: Infinity}); // Stream video
+        MBmusic = ytdl(item, ["-x", "--format=best", "--audio-format=mp3", "--"], {maxBuffer: Infinity}); // Stream video
         bot.sendMessage({to: channelID, message: "Downloading video data..."}, function(e,r) {
             //console.log(JSON.stringify(r));
             let updateDisplay;
@@ -388,6 +573,9 @@ function MBplayNext(stream, channelID) {
                     let elapsed = new Date(Date.now()-started);
                     bot.editMessage({channelID, messageID: r.id, message: "Now playing: **"+info.fulltitle+"** by **"+info.uploader+"** `["+elapsed.getUTCMinutes()+":"+rpad(elapsed.getUTCSeconds(), 2, "0")+" / "+minutes+":"+seconds+"]`"});
                 }, 5000);
+                bot.getPinnedMessages({channelID: channelID}, function(e,a) { if (!e) {
+                    if (a.length < 45) bot.pinMessage({channelID: channelID, messageID: r.id});
+                }});
                 bot.editMessage({channelID, messageID: r.id, message: "Now playing: **"+info.fulltitle+"** by **"+info.uploader+"** `[0:00 / "+minutes+":"+seconds+"]`"});
                 finished = "Finished playing: **"+info.fulltitle+"** by **"+info.uploader+"** `["+minutes+":"+seconds+" / "+minutes+":"+seconds+"]`";
                 MBmusic.pipe(stream, {end: false});
@@ -414,10 +602,17 @@ function MBplayNext(stream, channelID) {
 
 // Create a post on the Epigam forums.
 function postToEpigam(channelID, forum, topic, subject, message) {
-    epigamPostHeaders["Referer"] = "http://epigam.prophpbb.com/topic"+topic+".html";
+    let output = "Automatic Epigam uploads are broken. Blame Tapatalk. Anyway, somebody will have to do this for me. I choose... <@";
+    let online = epigamUploaders.filter(m => bot.servers[bot.channels[channelID].guild_id].members[m].status == "online");
+    if (online.length == 0) online = epigamUploaders;
+    output += online[0]+">!\n"+
+              "Here's the URL you have to go to: <http://epigam.prophpbb.com/posting.php?mode=reply&f="+forum+"&t="+topic+">\n"+
+              "Here's the message you have to send: ```\n"+message+"```";
+    bot.sendMessage({to: channelID, message: output});
+    return;
     request({
         url: "http://epigam.prophpbb.com/posting.php?mode=reply&f="+forum+"&t="+topic,
-        headers: epigamPostHeaders,
+        headers: Object.assign({}, epigamPostHeaders, {"Referer": "http://epigam.prophpbb.com/topic"+topic+".html"}),
         method: "GET"
     }, function(error, response, body) {
         if (error) {
@@ -436,7 +631,7 @@ function postToEpigam(channelID, forum, topic, subject, message) {
                 data[result[1]] = result[2];
             }
             if (data.form_token) {
-                let newHeaders = Object.assign(epigamPostHeaders, {"Referer": "http://epigam.prophpbb.com/posting.php?mode=reply&f="+forum+"&t="+topic});
+                let newHeaders = Object.assign({}, epigamPostHeaders, {"Referer": "http://epigam.prophpbb.com/posting.php?mode=reply&f="+forum+"&t="+topic});
                 request.post({
                     url: "http://epigam.prophpbb.com/posting.php?mode=reply&f="+forum+"&t="+topic,
                     headers: newHeaders,
@@ -467,11 +662,18 @@ function sendToPinsChannel(channelID, pinneeID, toPin, pinnerID) {
         bot.sendMessage({to: channelID, message: "Sorry, I couldn't pin this message because this channel has no associated pins channel to send the message to. Time to nag <@176580265294954507>."});
         return;
     }
-    if (pinneeID == pinnerID) {
+    if (pinneeID == pinnerID && bot.channels[channelID].guild_id == "112760669178241024") {
         bot.sendMessage({to: channelID, message: "<@"+pinnerID+"> No you fucking don't. Get the fuck out of here, self-pinning trash."}, function() {
             bot.sendMessage({to: channelID, message: "s!drop PSA: "+bot.users[pinnerID].username+" is self-pinning trash."}, function() {
-                bot.sendMessage({to: channelID, message: "s!tackle <@"+pinnerID+">"});
+                //bot.sendMessage({to: channelID, message: "s!tackle <@"+pinnerID+">"});
             });
+        });
+    }
+    if (channelPinList[channelID].limit) {
+        bot.getPinnedMessages({channelID: channelID}, function(e,a) {
+            if (a.length > channelPinList[channelID].limit) {
+                bot.deletePinnedMessage({channelID: channelID, messageID: a[a.length-1].id});
+            }
         });
     }
     let highest = 0;
@@ -501,18 +703,22 @@ function sendToPinsChannel(channelID, pinneeID, toPin, pinnerID) {
             url: image
         },
         footer: {
-            text: "#"+bot.channels[channelID].name+" | "+(message || toPin.id)
+            text: channelPinList[channelID].name
         },
         timestamp: t.toJSON()
     }}, function(e) {
         if (!e) bot.getPinnedMessages({channelID: channelID}, function(e,r) {
             if (!e) {
-                bot.sendMessage({to: channelID, message: "Okay, I pinned **"+userIDToNick(pinneeID, bot.channels[channelID].guild_id)+"**'s message, as per the request of **"+userIDToNick(pinnerID, bot.channels[channelID].guild_id)+"**. This channel now has "+r.length+"/50 pinned messages."});
-                if (r.length == 50) {
+                let message = "Okay, I pinned **"+userIDToNick(pinneeID, bot.channels[channelID].guild_id)+"**'s message, as per the request of **"+userIDToNick(pinnerID, bot.channels[channelID].guild_id)+"**. ";
+                if ((pinnerID == "112770767745265664" && pinneeID == "134826546694193153") || (pinnerID == "134826546694193153" && pinneeID == "112770767745265664")) message += "*Fucking pincestuous pieces of shit... mutter mutter.* ";
+                message += "This channel now has "+r.length+"/50 pinned messages.";
+                bot.sendMessage({to: channelID, message: message});
+                if (r.length == 50 && bot.channels[channelID].guild_id == "112760669178241024") {
                     let b = [];
                     for (let i of r.slice(25)) {
                         b.push(i.id);
                     }
+                    b.reverse();
                     genPinImage(channelID, b);
                 }
             };
@@ -522,8 +728,8 @@ function sendToPinsChannel(channelID, pinneeID, toPin, pinnerID) {
 
 // Given a text string, inserts line breaks to make it as wide as possible but thinner than the width.
 function flowText(ctx, text, width) {
-    const breakChars = [" ", "-", ".", ",", "(", ")", "/", ";", ":"];
-    let output = "";;
+    const breakChars = ["\n", " ", "-", ".", ",", "(", ")", "/", ";", ":"];
+    let output = "";
     while (text) { // Loop while text remains
         let line = ""; // Current line fits in here
         let next = false; // true = stop trying
@@ -534,9 +740,15 @@ function flowText(ctx, text, width) {
                 if (ctx.measureText(line+text.split(breakChars[c])[0]+breakChars[c]).actualBoundingBoxRight <= width) { // If next word is narrower than width,
                     line += text.split(breakChars[c])[0]+breakChars[c]; // Add word to line
                     text = text.split(breakChars[c]).slice(1).join(breakChars[c]); // Remove word from text;
-                    c = 0;
+                    if (breakChars[c] == "\n") {
+                        c = breakChars.length;
+                        next = true;
+                    } else {
+                        c = 0;
+                    }
                 } else { // Otherwise,
                     next = true; // stop trying;
+                    console.log("Can't fit \""+text.split(breakChars[c])[0]+breakChars[c]+"\" onto \""+line+"\".");
                 }
                 if (text == "") { // Quit once out of text
                     next = true;
@@ -556,23 +768,20 @@ function flowText(ctx, text, width) {
                 }
             }
         }
-        output += line+"\n"; // Add line to output;
+        line = line.split("\n").filter(l => l).join("\n");
+        output += line+"\n"; // Add line to output
     }
-    //console.log("Finished:\n"+output);
+    console.log("Finished:\n"+output);
     return output;
 }
 
 // Converts /<@!?[0-9]+>/ into **@username**
 function fixMentions(t) {
-    let index = 0;
-    while (t.content.search(/<@!?[0-9]+>/) != -1) {
-        t.content = t.content.replace(/<@!?[0-9]+>/, "|ml|@"+t.mentions[index].username+"|ml|");
-        index++;
-    }
-    t.content = t.content.replace(/(https?...([A-Za-z0-9]+\.)+[A-Za-z0-9]+[-A-Za-z0-9/_%&?".=]+)/g, "|ml|$1|ml|");
+    for (let m of t.mentions) t.content = t.content.replace(/<@!?\d+>/g, "|ml|@"+m.username+"|ml|");
+    t.content = t.content.replace(/(https?:\/\/([-0-9a-z]+\.)+[a-z]+(\/[-._a-zA-Z0-9?=&+%/]+)?)/g, "|ml|$1|ml|");
+    t.content = t.content.replace(/<:([a-z0-9_]{2,}):[0-9]{8,}>/g, ":$1:");
     return t;
 }
-
 
 // Allows for the display of formatted text
 function fillFormattedText(ctx, text, x, y) {
@@ -648,7 +857,7 @@ function genPinImage(channelID, messageArr) {
 
     bot.simulateTyping(channelID);
     getRes();
-    
+
     function getRes() {
         bot.getMessage({channelID: channelID, messageID: messageArr[index]}, function(e,r) {
             if (!e) resarray.push(r);
@@ -664,26 +873,45 @@ function genPinImage(channelID, messageArr) {
 
     function ctxAppend() {
         if (resarray.length == 0) {
+            console.log("Creating new canvas");
             let correctedSize = {x: size.x, y: offset};
             let realCanvas = new Canvas(correctedSize.x, correctedSize.y);
             let realCtx = realCanvas.getContext('2d');
             realCtx.putImageData(ctx.getImageData(0, 0, correctedSize.x, correctedSize.y), 0, 0);
-
+            console.log("Placed data on new canvas, saving");
             let write = realCanvas.createPNGStream().pipe(fs.createWriteStream("pins.png"));
             write.on("finish", function() {
+                console.log("Uploading");
                 bot.uploadFile({to: channelID, file: "pins.png", message: "Pins generated in "+((Date.now()-t)/1000).toFixed(1)+" seconds"}, function(e,r) {
                     if (!e) {
-                        postToEpigam(channelID, channelPinList[channelID].forum, channelPinList[channelID].topic, "Discord Quotes", "Here's the latest batch of pins, fresh from the oven. Be sure to change this message to say something less lame as soon as possible.\n\n[img]"+r.attachments[0].url+"[/img]");
+                        if (channelPinList[channelID]) {
+                            postToEpigam(channelID, channelPinList[channelID].forum, channelPinList[channelID].topic, "Discord Quotes", "Here's the latest batch of pins from "+channelPinList[channelID].name+". Enjoy.\n\n[img]"+r.attachments[0].url+"[/img]");
+                        }
                         //bot.sendMessage({to: channelID, message: "Epigam uploads are temporarily disabled. <@176580265294954507> if the pin imge turned out okay then enable it!"});
+                        function deletePinnedMessage(channelID, messageID) {
+                            bot.deletePinnedMessage({channelID: channelID, messageID: messageID}, function(e) {
+                                try {
+                                    setTimeout(function() {
+                                        deletePinnedMessage(channelID, messageID)
+                                    }, e.response.retry_after);
+                                    console.log("Pin deletion was rate-limited.");
+                                } catch (e) {}
+                            });
+                        }
+                        for (let i of messageArr) {
+                            deletePinnedMessage(channelID, i);
+                        }
+                        //bot.sendMessage({to: channelID, message: "Deleting pinned messages is temporarily disabled. Fix this."});
                     } else {
                         bot.sendMessage({to: channelID, message: "Uhoh. I couldn't upload the file. Sup <@176580265294954507>?"});
                     }
                 });
+                bot.sendMessage({to: channelID, message: "Upload started."});
             });
         } else {
             let res = resarray.splice(0, 1)[0];
             console.log(JSON.stringify(res));
-            if (bot.users[res.author.id]) { // Make sure the user can be found (leaves server, account deleted, ...)
+            if (bot.servers[bot.channels[channelID].guild_id].members[res.author.id]) { // Make sure the user can be found (leaves server, account deleted, ...)
                 // Sort out variables needed later
                 res.author.nick = (bot.servers[bot.channels[channelID].guild_id].members[res.author.id].nick || bot.users[res.author.id].username);
                 let highest = 0;
@@ -695,7 +923,7 @@ function genPinImage(channelID, messageArr) {
                     }
                 }
                 res.author.colour = bot.servers[bot.channels[channelID].guild_id].roles[highestID].color;
-                
+
                 // Avatar
                 if (res.author.avatar) {
                     ctx.fillStyle = "#36393E";
@@ -730,20 +958,33 @@ function genPinImage(channelID, messageArr) {
                     // Username
                     ctx.font = "regular 15pt 'Whitney'";
                     ctx.fillStyle = "#"+res.author.colour.toString(16);
-                    ctx.fillText(res.author.nick, imagePos.x2+textPad.left, textPad.top+offset);
+                    ctx.fillText(res.author.nick+" ("+res.author.username+")", imagePos.x2+textPad.left, textPad.top+offset);
                     ctx.lineWidth = 0.5;
                     ctx.strokeStyle = "#"+res.author.colour.toString(16);
-                    ctx.strokeText(res.author.nick, imagePos.x2+textPad.left, textPad.top+offset);
-                    
+                    ctx.strokeText(res.author.nick+" ("+res.author.username+")", imagePos.x2+textPad.left, textPad.top+offset);
+
                     // Message
                     ctx.font = "regular 15pt 'Whitney'";
                     ctx.fillStyle = "#c0c1c2";
                     let text = flowText(ctx, fixMentions(res).content, size.x-(imagePos.x2+textPad.left)-textPad.right-8);
                     //ctx.fillText(text, imagePos.x2+textPad.left, textPad.top+28+offset);
                     ctx = fillFormattedText(ctx, text, imagePos.x2+textPad.left, textPad.top+28+offset);
-                    
-                    vpos = ctx.measureText(text).actualBoundingBoxAscent + ctx.measureText(text).actualBoundingBoxDescent + textPad.top + offset + 15;
-                    
+                    console.log("The vertical position before text detection is "+vpos+", "+offset);
+                    //vpos = (ctx.measureText(text).actualBoundingBoxAscent + ctx.measureText(text).actualBoundingBoxDescent + 8)*((text.match(/\n/g) || []).length+1) + textPad.top + offset + 10;
+                    vpos = textPad.top + offset + linePad;
+                    (text.split("\n").slice(1) || []).forEach(function(l) {
+                        //vpos += ctx.measureText(l).actualBoundingBoxAscent+ctx.measureText(l).actualBoundingBoxDescent+3;
+                        vpos += 23;
+                        /*ctx.lineWidth = 1;
+                        ctx.strokeStyle = "#a2555C";
+                        ctx.beginPath();
+                        ctx.moveTo(linePad, vpos);
+                        ctx.lineTo(size.x-linePad, vpos);
+                        ctx.stroke();*/
+                    });
+                    console.log("The vertical position after text detection is "+vpos+", "+offset);
+                    console.log(JSON.stringify(ctx.measureText(text), null, 4));
+
                     // Images/Attachments
                     let attachmentsLeft = res.embeds.concat(res.attachments).length;
                     if (attachmentsLeft == 0) con2();
@@ -758,7 +999,7 @@ function genPinImage(channelID, messageArr) {
                                     let width = size.x-(imagePos.x2+textPad.left)-textPad.right;
                                     let sf = (image.width < width ? 1 : width/image.width);
                                     if (image.height*sf > maxImageHeight) {
-                                        sf = maxImageHeight/(image.height*sf);
+                                        sf = sf*maxImageHeight/(image.height*sf);
                                     }
                                     ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
                                     console.log("Drew image");
@@ -777,16 +1018,21 @@ function genPinImage(channelID, messageArr) {
                                         let width = size.x-(imagePos.x2+textPad.left)-textPad.right;
                                         let sf = (image.width < width ? 1 : width/image.width);
                                         if (image.height*sf > maxImageHeight) {
-                                            sf = maxImageHeight/(image.height*sf);
+                                            sf = sf*maxImageHeight/(image.height*sf);
                                         }
-                                        console.log("Image orientation is "+exifData.image.Orientation);
-                                        if (exifData.image.Orientation == 6) {
-                                            ctx.rotate(90*Math.PI/180);
-                                            ctx.translate(vpos-(imagePos.x2+textPad.left), -(imagePos.x2+textPad.left)-vpos-image.height*sf);
-                                            ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
-                                            ctx.setTransform(1, 0, 0, 1, 0, 0);
-                                            vpos += image.width*sf+15;
-                                        } else {
+                                        let complete = false;
+                                        if (!e) {
+                                            console.log("Image orientation is "+exifData.image.Orientation);
+                                            if (exifData.image.Orientation == 6) {
+                                                ctx.rotate(90*Math.PI/180);
+                                                ctx.translate(vpos-(imagePos.x2+textPad.left), -(imagePos.x2+textPad.left)-vpos-image.height*sf);
+                                                ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
+                                                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                                                vpos += image.width*sf+15;
+                                                complete = true;
+                                            }
+                                        }
+                                        if (!complete) {
                                             ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
                                             vpos += image.height*sf+15;
                                         }
@@ -807,6 +1053,7 @@ function genPinImage(channelID, messageArr) {
                     function con2() {
                         console.log("con2");
                         // Divider
+                        vpos += linePad;
                         ctx.lineWidth = 1;
                         ctx.strokeStyle = "#52555C";
                         ctx.beginPath();
@@ -1240,19 +1487,28 @@ function werewolf(user, userID, channelID, command) {
                     for (var i = 0; i < wwgPlayers.length; i++) {
                         bot.sendMessage({to: wwgPlayers[i], message: "All players have performed their actions. Now go back to the main channel and start talking!"});
                     }
-                    bot.sendMessage({to: wwgChannel, message: "All players have performed their actions. Now start talking!\nIf you want to play with a timer, don't forget to start it now!"});
+                    bot.sendMessage({to: wwgChannel, message: "All players have performed their actions. Now start talking!"});
                     for (const i of wwgPlayers) {
                         bot.unmute({serverID: bot.channels[wwgChannel].guild_id, userID: i});
                     }
                     if (wwgTimer != 0) {
-                        if (wwgStrict) {
+                        /*if (wwgStrict) {
                             bot.sendMessage({to: wwgChannel, message: "<@127296623779774464> remind "+wwgTimer+" minutes GAME END;"+wwgCurrentGameID});
                         } else {
                             bot.sendMessage({to: wwgChannel, message: "<@127296623779774464> remind "+wwgTimer+" minutes GAME END"});
-                        }
-                        setTimeout(function() {
+                        }*/
+                        wwgWarningTimeout = setTimeout(function() {
                             bot.sendMessage({to: wwgChannel, message: "30 seconds left! Make sure you've got a plan. If you're done already, you can just type **..wwg;end** to end the game early."});
-                        }, (wwgTimer*1000*60)-30);
+                        }, (wwgTimer*1000*60)-30000);
+                        if (wwgStrict) {
+                            wwgEndingTimeout = setTimeout(function() {
+                                bot.sendMessage({to: wwgChannel, message: "..wwg;end"});
+                            }, (wwgTimer*1000*60));
+                        } else {
+                            wwgEndingTimeout = setTimeout(function() {
+                                bot.sendMessage({to: wwgChannel, message: "The ONUW timer has expired."});
+                            }, (wwgTimer*1000*60));
+                        }
                     }
                 }
                 var dict = "";
@@ -1266,6 +1522,8 @@ function werewolf(user, userID, channelID, command) {
             }*/
             break;
         case "end":
+            clearTimeout(wwgWarningTimeout);
+            clearTimeout(wwgEndingTimeout);
             if (wwgPlayers.indexOf(userID) == -1 && userID != bot.id) {
                 output = "<@"+userID+"> You aren't in this game and therefore can't end it.";
             } else {
@@ -1551,7 +1809,7 @@ function werewolf(user, userID, channelID, command) {
                 wwgPlayerInteractionsDict = [];
                 wwgStartRoles = [];
                 wwgNewRoles = [];
-                wwgRoleConfig = [[0, 1, 1, 2, 3, 4], [0, 8, 1, 1, 2, 3, 4], [7, 8, 1, 1, 2, 3, 4, 5], [6, 6, 7, 1, 1, 2, 3, 4, 9], [6, 6, 7, 8, 1, 1, 2, 3, 4, 9], [9, 6, 6, 7, 8, 1, 1, 2, 3, 4, 5], [0, 9, 6, 6, 7, 8, 1, 1, 2, 3, 4, 5]];
+                wwgRoleConfig = [[0, 1, 1, 2, 3, 4], [0, 8, 1, 1, 2, 3, 4], [7, 8, 1, 10, 2, 3, 4, 5], [6, 6, 7, 1, 1, 2, 3, 4, 9], [6, 6, 7, 8, 1, 1, 2, 3, 4, 9], [9, 6, 6, 7, 8, 1, 1, 2, 3, 4, 5], [0, 9, 6, 6, 7, 8, 1, 1, 2, 3, 4, 5]];
                 wwgNightHasPassed = false;
                 wwgVotes = [];
                 wwgVotesUsed = [];
@@ -1562,6 +1820,8 @@ function werewolf(user, userID, channelID, command) {
                 wwgOldPlayerNames = [];
                 wwgTimer = 5;
                 wwgStrict = true;
+                clearTimeout(wwgEndingTimeout);
+                clearTimeout(wwgWarningTimeout);
                 wwgCurrentGameID = 0;
                 output = "Everything related to ONUW has been reset to the default values.";
             } else {
@@ -1603,6 +1863,43 @@ function werewolf(user, userID, channelID, command) {
             bot.sendMessage({to: channelID, message: output});
         }
     }
+}
+
+function ruralporn(channelID, message) {
+    let number = 0;
+    let sub = "/user/kjoneslol/m/sfwpornnetwork";
+    try {
+        if (message.split(";")[2]) if (message.split(";")[2].match(/[1-9][0-9]*/)) {
+            number = parseInt(message.split(";")[2]);
+        } else if (message.split(";")[1].match(/[1-9][0-9]*/)) {
+            number = parseInt(message.split(";")[1]);
+        }
+    } catch (e) {};
+    try {
+        if (message.split(";")[1] && number != 0) sub = message.split(";")[1];
+    } catch (e) {};
+    bot.simulateTyping(channelID);
+    request("https://www.reddit.com"+sub+"/new.json?sort=new&raw_json=1", function(e,r,b) {
+        try {
+            let i = 0;
+            while (i < 3) {
+                if (JSON.parse(b).data.children[number+i].data.preview.images[0].source.url) {
+                    bot.sendMessage({to: channelID, message: "**Link:** <"+JSON.parse(b).data.children[number+i].data.url+">\n"+
+                        "**Thread:** <https://reddit.com"+JSON.parse(b).data.children[number+i].data.permalink+">\n"+
+                        "**Preview:** "+JSON.parse(b).data.children[number+i].data.preview.images[0].source.url});
+                    i = 3;
+                } else {
+                    i++;
+                }
+            }
+        } catch (err) {
+            try {
+                bot.sendMessage({to: channelID, message: "ahaha that didn't work. It's probably your fault 😎```\n"+JSON.stringify(JSON.parse(b).data.children[0].data)+"```"});
+            } catch (err) {
+                bot.sendMessage({to: channelID, message: "...wow, something REALLY went wrong. It's probably still your fault though 😎😎😎"});
+            }
+        }
+    });
 }
 
 function vote(userID, channelID, command) {
@@ -1658,10 +1955,20 @@ function vote(userID, channelID, command) {
     bot.sendMessage({to: channelID, message: output});
 }
 
-function proxy(command) {
+function proxy(command, number) {
     var channelID = command.split(";")[1];
-    var message = command.split(";")[2];
-    bot.sendMessage({to: channelID, message: "Message sent via proxy:```"+message+"```"});
+    var message = command.split(";").slice(2).join(";");
+    if (bot.channels[channelID] || bot.users[channelID]) {
+        bot.sendMessage({to: channelID, message: "​"+message});
+    } else {
+        let ok = false;
+        for (let c in bot.channels) {
+            if (bot.channels[c].name == channelID && !ok) {
+                bot.sendMessage({to: c, message: "​"+message}); // Zero-width space!!!!
+                ok = true;
+            }
+        }
+    }
 }
 
 function convertTemp(userID, channelID, command) {
@@ -1704,18 +2011,48 @@ function choose(userID, channelID, command) {
 }
 
 function flag(channelID, command) {
-    var emoji = [];
-    if (command.split(";")[3] != undefined) {
-        for (var i = 0; i < 3; i++) {
-            if (command.split(";")[i+1].indexOf("<") != -1 && command.split(";")[i+1].indexOf(">") != -1) {
-                emoji[i] = "<"+command.split(";")[i+1].split("<")[1].split(">")[0]+">";
+    let el = [];
+    let template = "";
+    let output = "";
+    console.log("OK");
+    if (command.split(";")[3]) {
+        for (let i of command.split(";").slice(1, 4)) {
+            if (i.match(/</)) {
+                el.push(i.replace(/\s/g, ""));
+            } else if (i.match(/:/)) {
+                el.push(emoji("", "", channelID, i.replace(/\s/g, ""), {}));
             } else {
-                emoji[i] = command.split(";")[i+1];
+                el.push(i.replace(/\s/g, ""));
             }
         }
-        output = emoji[2]+emoji[1]+emoji[2]+emoji[1]+emoji[0]+emoji[0]+emoji[0]+emoji[0]+"\n"+emoji[1]+emoji[2]+emoji[1]+emoji[2]+emoji[1]+emoji[1]+emoji[1]+emoji[1]+"\n"+emoji[2]+emoji[1]+emoji[2]+emoji[1]+emoji[0]+emoji[0]+emoji[0]+emoji[0]+"\n"+emoji[1]+emoji[2]+emoji[1]+emoji[2]+emoji[1]+emoji[1]+emoji[1]+emoji[1]+"\n"+emoji[0]+emoji[0]+emoji[0]+emoji[0]+emoji[0]+emoji[0]+emoji[0]+emoji[0]+"\n"+emoji[1]+emoji[1]+emoji[1]+emoji[1]+emoji[1]+emoji[1]+emoji[1]+emoji[1]+"\n"+emoji[0]+emoji[0]+emoji[0]+emoji[0]+emoji[0]+emoji[0]+emoji[0]+emoji[0];
-        bot.sendMessage({to: channelID, message: output});
+        switch (parseInt(command.split(4))) {
+        default:
+            template = "+.+.----\n"+
+                       ".+.+....\n"+
+                       "+.+.----\n"+
+                       ".+.+....\n"+
+                       "--------\n"+
+                       "........\n"+
+                       "--------\n"+
+                       "........";
+            break;
+        }
+        output = template.replace(/-/g, el[0]).replace(/\./g, el[1]).replace(/\+/g, el[2]);
+    } else {
+        output = "Try **..flag;*emoji1*;*emoji2*;*emoji3***.";
     }
+    bot.sendMessage({to: channelID, message: output});
+    //~ if (command.split(";")[3] != undefined) {
+        //~ for (var i = 0; i < 3; i++) {
+            //~ if (command.split(";")[i+1].indexOf("<") != -1 && command.split(";")[i+1].indexOf(">") != -1) {
+                //~ el[i] = "<"+command.split(";")[i+1].split("<")[1].split(">")[0]+">";
+            //~ } else {
+                //~ el[i] = command.split(";")[i+1];
+            //~ }
+        //~ }
+        //~ output = el[2]+el[1]+el[2]+el[1]+el[0]+el[0]+el[0]+el[0]+"\n"+el[1]+el[2]+el[1]+el[2]+el[1]+el[1]+el[1]+el[1]+"\n"+el[2]+el[1]+el[2]+el[1]+el[0]+el[0]+el[0]+el[0]+"\n"+el[1]+el[2]+el[1]+el[2]+el[1]+el[1]+el[1]+el[1]+"\n"+el[0]+el[0]+el[0]+el[0]+el[0]+el[0]+el[0]+el[0]+"\n"+el[1]+el[1]+el[1]+el[1]+el[1]+el[1]+el[1]+el[1]+"\n"+el[0]+el[0]+el[0]+el[0]+el[0]+el[0]+el[0]+el[0];
+        //~ bot.sendMessage({to: channelID, message: output});
+    //~ }
 }
 
 function yesno(userID, channelID, command) {
@@ -1768,9 +2105,9 @@ function tz(userID, channelID, command) {
                 let time = new Date(answer.timestamp*1000);
                 bot.sendMessage({to: channelID, message: "<@"+userID+"> Your local time was set to "+time.getUTCHours()+":"+(time.getUTCMinutes() <= 9 ? ("0"+time.getUTCMinutes().toString()) : time.getUTCMinutes())+" (24hr)."});
             }
+            userTimes[userID] = command.split(";")[2];
+            fs.writeFile("/home/pi/Documents/usertimes.txt", JSON.stringify(userTimes));
         });
-        userTimes[userID] = command.split(";")[2];
-        fs.writeFile("/home/pi/Documents/usertimes.txt", JSON.stringify(userTimes));
         break;
     default:
         if (command.split(";")[1] == undefined) {
@@ -1864,16 +2201,20 @@ function twatrDetect(userID, channelID, command) {
     bot.sendMessage({to: channelID, message: "<@"+userID+"> "+numberOnline+"/"+warPeople.length+" WatR players are online.\nOnline: "+onlineList+"\nOffline/Idle: "+offlineList});
 }
 
-function exec(userID, channelID, command) {
-    let output = eval(command.split(";").slice(1).join(";"));
-    if (typeof(output) == "number") output = output.toString();
-    if (typeof(output) == "object") output = JSON.stringify(output);
-    if (output == undefined) {
-        bot.sendMessage({to: channelID, message: "Command did not produce any output."});
-    } else if (output.length > 1900) {
-        bot.sendMessage({to: channelID, message: "Output too long. First 1900 characters of output: ```\n"+output.slice(0, 1900)+"```"});
-    } else {
-        bot.sendMessage({to: channelID, message: "Output of command: ```\n"+output+"```"});
+function exec(userID, channelID, command, event) {
+    try {
+        let output = eval(command.split(";").slice(1).join(";"));
+        if (typeof(output) == "number") output = output.toString();
+        if (typeof(output) == "object") output = JSON.stringify(output);
+        if (output == undefined) {
+            bot.sendMessage({to: channelID, message: "Command did not produce any output."});
+        } else if (output.length > 1900) {
+            bot.sendMessage({to: channelID, message: "Output too long. First 1900 characters of output: ```\n"+output.slice(0, 1900)+"```"});
+        } else {
+            bot.sendMessage({to: channelID, message: "Output of command: ```\n"+output+"```"});
+        }
+    } catch (e) {
+        bot.sendMessage({to: channelID, message: "Error caught while running command: "+e});
     }
 }
 
@@ -1889,7 +2230,7 @@ function emoji(user, userID, channelID, command, event) {
             }
         }
     }
-    if (replaced) bot.sendMessage({to: channelID, message: "**"+user+"**: "+reverse(command)});
+    if (replaced) return reverse(command);
 }
 
 function calculateDistance(userID, channelID, command) {
@@ -1927,23 +2268,25 @@ function getTurnInfo(callback) {
     bot.getMessages({channelID: "304384243130171395", limit: 40}, function(error, messageArray) {
         if (!error) {
             let roundStart;
-            let hasSpoken = new Array(warPeople.length);
-            let everyoneSpoken = true;
-            for (let i = 0; i < hasSpoken.length; i++) hasSpoken[i] = false;
-            for (let i = messageArray.length-1; i >= 0; i--) {
+            //~ let hasSpoken = new Array(warPeople.length);
+            let everyoneSpoken;
+            let justFinished;
+            //~ for (let i = 0; i < hasSpoken.length; i++) hasSpoken[i] = false;
+            for (let i = messageArray.length-1; i >= 0; i--) { // Find the start of the round
                 if (messageArray[i].content.toLowerCase().indexOf("round") != -1 && messageArray[i].author.id == "113457314106740736") roundStart = i;
             }
-            for (let i = 0; i < roundStart; i++) {
-                if (warPeople.indexOf(messageArray[i].author.id) != -1) hasSpoken[warPeople.indexOf(messageArray[i].author.id)] = true;
-            }
-            let notTaken = [];
-            for (let i = 0; i < warPeople.length; i++) {
-                if (!hasSpoken[i]) {
-                    notTaken.push(warPeople[i]);
-                    everyoneSpoken = false;
-                }
-            }
-            callback({everyoneSpoken: everyoneSpoken, notTaken: notTaken});
+            //~ for (let i = 0; i < roundStart; i++) {
+                //~ if (warPeople.indexOf(messageArray[i].author.id) != -1) hasSpoken[warPeople.indexOf(messageArray[i].author.id)] = true;
+            //~ }
+            everyoneSpoken = warPeople.every(p => messageArray.slice(0, roundStart).map(i => i.author.id).includes(p));
+            justFinished = !warPeople.every(p => messageArray.slice(1, roundStart).map(i => i.author.id).includes(p)) && everyoneSpoken;
+            //~ let notTaken = [];
+            //~ for (let i = 0; i < warPeople.length; i++) {
+                //~ if (!hasSpoken[i]) {
+                    //~ notTaken.push(warPeople[i]);
+                //~ }
+            //~ }
+            callback({everyoneSpoken: everyoneSpoken, notTaken: warPeople.filter(p => !messageArray.slice(0, roundStart).map(i => i.author.id).includes(p)), justFinished: justFinished});
         }
     });
 }
@@ -1974,28 +2317,62 @@ bot.on("ready", function() { // When the bot comes online...
         userTimes = JSON.parse(fs.readFileSync("/home/pi/Documents/usertimes.txt", "utf8"));
         //console.log("Loaded user times: "+JSON.stringify(userTimes, null, 4));
         setInterval(function(){bot.sendMessage({to: "330164254969823233", message: "<@113852329832218627>"})}, 30000);
-        bot.leaveVoiceChannel(bot.servers["112760669178241024"].members["176580265294954507"].voice_channel_id);
-    }
-    if (botTestingMode) {
-        bot.setPresence({game: {name: "type ..help; for help!"}});
-    } else {
-        if (!restarted) {
-            //bot.sendMessage({to: "160197704226439168", message: "(bot restarted)"});
+        //bot.leaveVoiceChannel(bot.servers["112760669178241024"].members["176580265294954507"].voice_channel_id);
+        function logCTPlaying() {
+            if (cytubeCheck) {
+                //console.log("CyTube change detected at "+Date.now());
+                let playing = fs.readFileSync("/tmp/cytube.txt").toString();
+                if (playing.length > 1 && !playing.includes("0 items")) {
+                    if (cytubeCurrentVideo == "" && Date.now()-cytubeLastPing > cytubePingDelay) {
+                        bot.sendMessage({to: cytubeAnnouncementChannel, message: "Now playing on CyTube: **"+playing+"**\nGet in here, <@&352291384021090304>! <https://cytu.be/r/epicord>"});
+                        cytubeLastPing = Date.now();
+                    } else if (cytubeCurrentVideo != playing) {
+                        bot.sendMessage({to: cytubeAnnouncementChannel, message: "Now playing on CyTube: **"+playing+"**\nJoin us! <https://cytu.be/r/epicord>"});
+                        cytubeLastPing = Date.now();
+                    }
+                    cytubeCurrentVideo = playing;
+                } else {
+                    if (cytubeCurrentVideo.length > 1) {
+                        bot.sendMessage({to: cytubeAnnouncementChannel, message: "CyTube playback ended."});
+                        cytubeLastPing = Date.now();
+                    }
+                    cytubeCurrentVideo = "";
+                }
+            }
         }
-        bot.setPresence({game: {name: "type ..help; for help!"}});
+        fs.writeFileSync("/tmp/cytube.txt", "");
+        fs.watchFile("/tmp/cytube.txt", logCTPlaying);
     }
+    bot.setPresence({game: {name: "type ..help; for help!", type: 0}});
     restarted = true;
 });
 
 bot.on("message", function(user, userID, channelID, message, event) {
+    try {
+        if (bot.channels[channelID].guild_id == "301392540723052544" && message.match(/^\.\.[a-z]{2,}/i)) {
+            bot.sendMessage({to: channelID, message: "Sorry, commands beginning with `..` are disabled on this server. Check the pinned messages in <#342556834155986944> for information on music commands."});
+            return;
+        }
+    } catch (e) {};
+    if (botBlacklist.indexOf(userID) != -1) return;
     // Manage incoming messages and take appropriate action.
-    if (event.d.type == 6 && channelID == "304384243130171395" && userID == bot.id) {
+    if (message == "?help" && bot.servers["112760669178241024"].members["309960863526289408"].nick == "Dyno") {
+        bot.sendMessage({to: channelID, message: "~?help"}, function(e,r) {
+            if (!e) bot.deleteMessage({channelID: channelID, messageID: r.id});
+        });
+    }
+    if (event.d.type == 6 && userID == bot.id) {
         bot.deleteMessage({channelID: channelID, messageID: event.d.id});
     }
     if (event.d.type == 6 && userID == bot.id) { // Bail! Bail!
         return;
     }
-    if (event.d.type == 6 && bot.channels[channelID].guild_id == "112760669178241024") {
+    if (event.d.type == 6 && pinServers.includes(bot.channels[channelID].guild_id)) {
+        if (channelPinList[channelID]) {
+            if (channelPinList[channelID].channel == "ignore") {
+                return;
+            }
+        }
         let realPin = true;
         for (let c in channelPinList) {
             if (channelPinList[c].channel == channelID) {
@@ -2023,7 +2400,7 @@ bot.on("message", function(user, userID, channelID, message, event) {
     }
     if (channelID == "304384243130171395" && warPeople.indexOf(userID) != -1) {
         getTurnInfo(function(response) {
-            if (response.everyoneSpoken) bot.sendMessage({to: channelID, message: "Everyone has taken a turn. <@113457314106740736>, write up the summary on Epigam!"});
+            if (response.justFinished) bot.sendMessage({to: channelID, message: "Everyone has taken a turn. <@113457314106740736>, write up the summary on Epigam!"});
         });
     }
     if (event.d.mentions.length == 1) {
@@ -2061,7 +2438,7 @@ bot.on("message", function(user, userID, channelID, message, event) {
                 convertTemp(userID, channelID, message);
                 break;
             case "..proxy":
-                proxy(message);
+                if (!["134826546694193153"].includes(userID)) proxy(message);
                 break;
             case "..wwg":
             case "..onuw":
@@ -2095,7 +2472,7 @@ bot.on("message", function(user, userID, channelID, message, event) {
                 eightHippo(userID, channelID, message);
                 break;
             case "..exec":
-                if (botAdmins.indexOf(userID) != -1) exec(userID, channelID, message);
+                if (botAdmins.indexOf(userID) != -1) exec(userID, channelID, message, event);
                 break;
             case "..dist":
                 calculateDistance(userID, channelID, message);
@@ -2111,23 +2488,44 @@ bot.on("message", function(user, userID, channelID, message, event) {
                     if (message.split(";")[1]) {
                         genPinImage(channelID, message.split(";").slice(1));
                     } else {
-                        bot.getPinnedMessages({channelID: channelID}, function(e,a) {
-                            let b = [];
-                            for (let i of a) {
-                                b.push(i.id);
+                        bot.getPinnedMessages({channelID: channelID}, function(e,r) {
+                            if (!e) {
+                                if (r.length == 50) {
+                                    let b = [];
+                                    for (let i of r.slice(25)) {
+                                        b.push(i.id);
+                                    }
+                                    b.reverse();
+                                    genPinImage(channelID, b);
+                                }
                             }
-                            genPinImage(channelID, b.sort());
                         });
                     }
                 }
                 break;
-            case "..music":
-                playMusic(userID, channelID, message);
+            //~ case "..music":
+                //~ playMusic(userID, channelID, message);
+                //~ break;
+            case "..sfwporn":
+                ruralporn(channelID, message);
+                break;
+            case "..stopcytube":
+                fs.writeFileSync("./cytube.txt", "false");
+                cytubeCheck = false;
+                bot.sendMessage({to: channelID, message: "Killswitch flipped. CyTube announcements are irreversibly disabled."});
+                break;
+            case "..rsrb":
+                require("child_process").exec("ps aux | grep -v grep | grep rnl.*start.sh", function(e,r) {
+                    bot.sendMessage({to: channelID, message: "This device is "+(r ? "either hosting or" : "not hosting nor")+" ready to host RNL's bot."});
+                });
                 break;
             }
         }
     }
-    if (reverse(message).search(/:\w*:(?!<)/) != -1 && !bot.users[userID].bot) emoji(user, userID, channelID, message, event);
+    if (reverse(message).search(/:\w*:(?!<)/) != -1 && !bot.users[userID].bot) {
+        let result = emoji(user, userID, channelID, message, event);
+        if (result) bot.sendMessage({to: channelID, message: "**"+user+"**: "+result});
+    }
     if (message.indexOf("..lenny") != -1) {
         message = message.replace(/..lenny;/g, "( ͡° ͜ʖ ͡°)");
         message = message.replace(/..lenny/g, "( ͡° ͜ʖ ͡°)");
@@ -2156,7 +2554,7 @@ bot.on("message", function(user, userID, channelID, message, event) {
         fs.writeFile("/var/www/html/stats.js", "let wwgStats = "+JSON.stringify(wwgStats)+";");
         bot.sendMessage({to: channelID, message: "OK."});
     }*/
-    if (message.match(/play/i)) {
+    if (message.match(/play/i) && message.charAt(0).match(/\w/)) {
         let vRegexes = [/https?:\/\/.*youtube\.co.*\/watch\?.*v=([-_a-zA-Z0-9]{10,})/, /https?:\/\/youtu\.be\/([-_a-zA-Z0-9]{10,})/];
         let pRegexes = [/https?:\/\/.*youtube\.co.*\/playlist\?.*list=([-_a-zA-Z0-9]+)/];
         let started = false;
@@ -2169,6 +2567,7 @@ bot.on("message", function(user, userID, channelID, message, event) {
         }
         if (message.match(pRegexes[0]) && !started) {
             let a = [];
+            started = true;
             fetchPlaylist();
             function fetchPlaylist(token) {
                 request("https://www.googleapis.com/youtube/v3/playlistItems/?playlistId="+message.match(pRegexes[0])[1]+"&part=snippet%2CcontentDetails&maxResults=50&key="+ytToken+(token ? "&pageToken="+token : ""), function(e,r,b) {
@@ -2193,7 +2592,6 @@ bot.on("message", function(user, userID, channelID, message, event) {
                                     }
                                     a = c;
                                 }
-                                started = true;
                                 MBaddToQueue(a, userID, channelID, message.match(/next/i));
                             }
                         }
@@ -2207,7 +2605,7 @@ bot.on("message", function(user, userID, channelID, message, event) {
             started = true;
             MBaddToQueue(message.match(MBfRegex)[0], userID, channelID, message.match(MBfRegex)[0]);
         }
-        if (message.match(/start/i) && !started) {
+        if (message == "play start" && !started && userID != bot.id) {
             started = true;
             MBaddToQueue(undefined, userID, channelID);
         }
@@ -2254,6 +2652,7 @@ bot.on("message", function(user, userID, channelID, message, event) {
 });
 
 bot.on("presence", function(user, userID, status, game, event) {
+    if (botBlacklist.indexOf(userID) != -1) return;
     if (userID == "113852329832218627") {
         bot.sendMessage({to: "112760669178241024", message: "@everyone <@&212762309364285440> <@113852329832218627> <@&212762309364285440> @everyone"});
         let pings = "";
