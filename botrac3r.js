@@ -9,7 +9,6 @@ var portscanner = require("portscanner");
 let path = require("path");
 let Canvas = require("canvas");
 let exif = require("exif");
-let syncRequest = require("sync-request");
 let ytdl = require("youtube-dl");
 let [ botToken, ytToken ] = fs.readFileSync("token.txt", "utf8").split("\n");
 let epigamCookies;
@@ -36,10 +35,14 @@ var bot = new Discord.Client({
 
 const botBlacklist = ["206627682807578624", "197686571141431297"];
 
+let onemdList = [];
+let ignorePinnedMessages = [];
+
 const botAdmins = ["176580265294954507", "117661708092309509", "238459957811478529"];
 const warPeople = ["112767329347104768", "176580265294954507", "112760500130975744", "117661708092309509"];
-const pinServers = ["112760669178241024", "338363692955729930"];
+const pinServers = ["112760669178241024", "338363692955729930", "370375630736588811"];
 const channelPinList = {
+    /*
     // Epicord
     "112760669178241024": {
         channel: "331390333810376704",
@@ -171,12 +174,12 @@ const channelPinList = {
         topic: "1005",
         name: "the CyTube channel"
     },
-    "354832988980379650": {
+    "373335332436967424": {
         channel: "331390333810376704",
         forum: "54",
         topic: "1005",
-        name: "the rules channel"
-    },
+        name: "the channel where stuff actually gets done"
+    },*/
     // Evilgrapez's server
     "338363692955729930": {
         "channel": "349612457465085972",
@@ -301,6 +304,70 @@ const channelPinList = {
     "350121558527836160": {
         "channel": "349612457465085972",
         "limit": 49
+    },
+    // Zoltier's server
+    "370375630736588812": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370375630736588813": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370375630736588814": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370375630736588815": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370377143001284608": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370403940250025986": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370404791358324756": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370404938267885568": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370405002587668480": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370405075559907341": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370406677700149248": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370407730252480544": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370529017515999233": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370773232770351105": {
+        "channel": "370785722279657493",
+        "limit": 49
+    },
+    "370785722279657493": {
+        "channel": "ignore"
+    },
+    "370787374373797890": {
+        "channel": "370785722279657493",
+        "limit": 49
     }
 };
 let warPeopleOnline = false;
@@ -358,7 +425,7 @@ let epigamPostHeaders = {
     //"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-GB,en-US"
 };
-let epigamUploaders = ["176580265294954507", "113340068197859328", "116718249567059974", "112814914019614720", "117661708092309509"];
+let epigamUploaders = ["176580265294954507", "113340068197859328", "116718249567059974", /*"112814914019614720", */"117661708092309509"];
 
 function userIDToNick(userID, serverID) {
     if (serverID) { // If a server was specified...
@@ -473,8 +540,8 @@ function playMusic(userID, channelID, command) {
                     let item = list.splice(0,1)[0];
                     let music = ytdl(item, ["-x", "--format=best", "--audio-format=mp3", "--"], {maxBuffer: Infinity}); // Stream video
                     music.pipe(s, {end: false});
-                    fs.createReadStream("/home/pi/Downloads/cdj.mp3").pipe(s, {end: false}); // Pipe to voice channel
-                    bot.playAudioFile("/home/pi/Downloads/cdj.mp3");
+                    /*fs.createReadStream("/home/pi/Downloads/cdj.mp3").pipe(s, {end: false}); // Pipe to voice channel
+                    bot.playAudioFile("/home/pi/Downloads/cdj.mp3");*/
                     console.log("["+t+"] Started streaming "+item);
                     s.once("done", function() { // When stream ends
                         if (list.length == 0) {
@@ -516,7 +583,11 @@ function MBaddToQueue(vID, userID, channelID, next) {
             } else {
                 bot.joinVoiceChannel(bot.servers[bot.channels[channelID].guild_id].members[userID].voice_channel_id, function(e,r) {
                     if (e) {
-                        bot.sendMessage({to: channelID, message: "I couldn't join your voice channel. Maybe you're not in one?\nJoin a voice channel and use `play start` to play the current queue."});
+                        if (bot.channels[channelID].guild_id == "301392540723052544") {
+                            bot.sendMessage({to: channelID, message: "I couldn't join your voice channel. On the ICE Discord server, you must be in the voice channel named **Music** (look in the **Misc** category at the bottom).\nJoin that voice channel and use `play start` to play the current queue."});
+                        } else {
+                            bot.sendMessage({to: channelID, message: "I couldn't join your voice channel. Maybe you're not in one?\nJoin a voice channel and use `play start` to play the current queue."});
+                        }
                         can(e);
                     } else {
                         con(r);
@@ -659,7 +730,7 @@ function postToEpigam(channelID, forum, topic, subject, message) {
 
 function sendToPinsChannel(channelID, pinneeID, toPin, pinnerID) {
     if (!channelPinList[channelID]) {
-        bot.sendMessage({to: channelID, message: "Sorry, I couldn't pin this message because this channel has no associated pins channel to send the message to. Time to nag <@176580265294954507>."});
+        //bot.sendMessage({to: channelID, message: "Sorry, I couldn't pin this message because this channel has no associated pins channel to send the message to. Time to nag <@176580265294954507>."});
         return;
     }
     if (pinneeID == pinnerID && bot.channels[channelID].guild_id == "112760669178241024") {
@@ -737,8 +808,10 @@ function flowText(ctx, text, width) {
         while (c < breakChars.length) { // Try many breaking characters in order
             next = false;
             while (!next) {
-                if (ctx.measureText(line+text.split(breakChars[c])[0]+breakChars[c]).actualBoundingBoxRight <= width) { // If next word is narrower than width,
+                let measured = ctx.measureText(line+text.split(breakChars[c])[0]+(breakChars[c] == "\n" ? "" : breakChars[c])).actualBoundingBoxRight;
+                if (measured <= width) { // If next word is narrower than width,
                     line += text.split(breakChars[c])[0]+breakChars[c]; // Add word to line
+                    //console.log(`> ${line}`);
                     text = text.split(breakChars[c]).slice(1).join(breakChars[c]); // Remove word from text;
                     if (breakChars[c] == "\n") {
                         c = breakChars.length;
@@ -748,7 +821,7 @@ function flowText(ctx, text, width) {
                     }
                 } else { // Otherwise,
                     next = true; // stop trying;
-                    console.log("Can't fit \""+text.split(breakChars[c])[0]+breakChars[c]+"\" onto \""+line+"\".");
+                    //console.log(`Can't fit "${text.split(breakChars[c])[0]+breakChars[c]}" onto "${line}". (${measured} > ${width})`);
                 }
                 if (text == "") { // Quit once out of text
                     next = true;
@@ -775,42 +848,124 @@ function flowText(ctx, text, width) {
     return output;
 }
 
+function characterIsEmoji(character) {
+    let code = character.charCodeAt(0);
+    return (code >= 0x1F600 && code <= 0x1F64F) ||
+           (code >= 0x1F300 && code <= 0x1F5FF) ||
+           (code >= 0x1F680 && code <= 0x1F6FF) ||
+           (code >= 0x2600  && code <= 0x26FF) ||
+           (code >= 0x2700  && code <= 0x27BF) ||
+           (code >= 0xFE00  && code <= 0xFE0F) ||
+           (code >= 0x1F900 && code <= 0x1F9FF) ||
+           (code >= 0x1F1E6 && code <= 0x1F1FF);
+}
+
 // Converts /<@!?[0-9]+>/ into **@username**
-function fixMentions(t) {
-    for (let m of t.mentions) t.content = t.content.replace(/<@!?\d+>/g, "|ml|@"+m.username+"|ml|");
-    t.content = t.content.replace(/(https?:\/\/([-0-9a-z]+\.)+[a-z]+(\/[-._a-zA-Z0-9?=&+%/]+)?)/g, "|ml|$1|ml|");
-    t.content = t.content.replace(/<:([a-z0-9_]{2,}):[0-9]{8,}>/g, ":$1:");
+function fixMentions(t, emojis) {
+    for (let m of t.mentions) t.content = t.content.replace(/<@!?\d+>/g, "৷@"+m.username+"৷");
+    t.content = t.content.replace(/\[.*\]\((https?:\/\/([-0-9a-z]+\.)+[a-z]+(\/[-._a-zA-Z0-9?=&+%/]+)?)\)/msg, "$1");
+    t.content = t.content.replace(/(https?:\/\/([-0-9a-z]+\.)+[a-z]+(\/[-._a-zA-Z0-9?=&+%/]+)?)/g, "৷$1৷");
+    //t.content = t.content.replace(/<a?:\d{2}:\d{8,}>/g, "");
+    //t.content = t.content.replace(/<a?:([a-zA-Z0-9_]{2,}):[0-9]{8,}>/g, ":$1:");
+    for (let emojiString of [t.content.match(/<a?:([a-zA-Z0-9_]{1,}):[0-9]{8,}>/g) || []][0]) {
+        let match = emojiString.match(/:(.*?):(.*?)>/);
+        emojis.stack.push({name: match[1], id: match[2]});
+    }
+    t.content = t.content.replace(/<a?:([a-zA-Z0-9_]{1,}):[0-9]{8,}>/g, "|eii|");
+    t.content = removeEmojiBackslashes(t.content);
     return t;
 }
 
+function fixMentionsContentOnly(content, emojis) {
+    let mentionedUsers = [content.match(/<@!?\d+>/g) || []][0].map(t => t.match(/\d+/)[0]);
+    let fakeMsg = {content, mentions: mentionedUsers.map(id => bot.users[id])};
+    return fixMentions(fakeMsg, emojis).content;
+}
+
+function removeEmojiBackslashes(content) {
+    let regex = /\\/g;
+    let backslashLocations = [];
+    let lastMatch = [];
+    while (lastMatch = regex.exec(content)) {
+        backslashLocations.push(lastMatch.index);
+    }
+    backslashLocations.forEach((location, index) => {
+        if (characterIsEmoji(content.charAt(location+1))) {
+            content = content.slice(0, lastBackslash) + content.slice(lastBackslash+1);
+            for (let i = index; i < backslashLocations.length; i++) {
+                backslashLocations[i]--;
+            }
+        }
+    });
+    return content;
+}
+
 // Allows for the display of formatted text
-function fillFormattedText(ctx, text, x, y) {
+function fillFormattedText(ctx, text, x, y, emojis, fillStyle, baseFont, lineHeight) {
+    if (!fillStyle) fillStyle = "#c0c1c2";
+    if (!baseFont) baseFont = "15pt 'Whitney'";
+    if (!lineHeight) lineHeight = 23;
     let offset = {x: 0, y: 0};
     //TODO: Re-add italics
-    let mdStrings = [{name: "__", action: "underline"},{name: "**", action: "bold"},{name: "*", action: "italic"},{name: "~~", action: "strike"},{name: "\n", action: "newline"},{name: "|ml|", action: "mlink"}];
+    let mdStrings = [
+        {name: "\\", action: "escape"},
+        {name: "`", action: "inlinecode"},
+        {name: "__", action: "underline"},
+        {name: "**", action: "bold"},
+        {name: "*", action: "italic"},
+        {name: "~~", action: "strike"},
+        {name: "\n", action: "newline", noclose: true},
+        {name: "৷", action: "mlink"},
+        {name: "|eii|", action: "emoji", noclose: true}
+    ];
     let formattedText = [];
-    let status = {bold: false, italic: false, underline: false, strike: false, newline: false, mlink: false}; // The formatting of the start of text
+    let status = {escape: false, bold: false, italic: false, underline: false, strike: false, newline: false, mlink: false}; // The formatting of the start of text
     let id = {name: "start"};
     while (id.name) { // Keep looping if there may be more to do
         id = {}; // Will contain first Markdown match
         let pos;
-        for (let i of mdStrings) if (text.indexOf(i.name) != -1 && !(text.indexOf(i.name) >= pos)) { // Store the first Markdown match in id
-            id = i;
-            pos = text.indexOf(i.name);
+        console.log("---");
+        console.log(formattedText);
+        console.log(text);
+        for (let i of mdStrings) {
+            // Store the first Markdown match in id
+            if (text.indexOf(i.name) != -1 && !(text.indexOf(i.name) >= pos)) {
+                let ok = true;
+                if (i.name == "*") {
+                    if (status[i.action] && typeof(text[text.indexOf(i.name)-1]) == "string" && text[text.indexOf(i.name)-1].match(/\s/)) {
+                        ok = false;
+                    }
+                    if (!status[i.action] && text[text.indexOf(i.name)+1].match(/\s/)) {
+                        ok = false;
+                    }
+                }
+                if (ok) {
+                    id = i;
+                    pos = text.indexOf(i.name);
+                }
+            }
         }
-        if (id.name) { // If something was matched
-            if (id.action == "newline") status[id.action] = !status[id.action];
+        if (id.name && status.escape) { // If the match needs to be escaped
+            console.log("Matched "+id.name+" at "+pos+" but will escape");
+            if (id.noclose) status[id.action] = !status[id.action];
+            formattedText.push(Object.assign({text: text.slice(0, text.indexOf(id.name)+id.name.length)}, status)); // Add the formatted text
+            text = text.slice(text.indexOf(id.name)+id.name.length); // Trim the text string
+            status.escape = false;
+        } else if (id.name) { // If something was matched
+            console.log("Matched "+id.name+" at "+pos);
+            if (id.noclose) status[id.action] = !status[id.action];
             formattedText.push(Object.assign({text: text.slice(0, text.indexOf(id.name))}, status)); // Add the formatted text
             text = text.slice(text.indexOf(id.name)+id.name.length); // Trim the text string
             status[id.action] = !status[id.action]; // Switch the status
         } else {
+            console.log("Matched nothing");
             formattedText.push(Object.assign({text: text}, status)); // Add the formatted text
         }
     }
     ctx.lineWidth = 0;
     for (let i of formattedText) {
         let font = "";
-        ctx.fillStyle = "#c0c1c2";
+        ctx.fillStyle = fillStyle;
         if (i.bold) font += "bold ";
         if (i.italic) font += "italic ";
         if (i.mlink) {
@@ -823,19 +978,51 @@ function fillFormattedText(ctx, text, x, y) {
             ctx.fillRect(dim.x1, dim.y1, dim.x2, dim.y2);
             ctx.fillStyle = "#7289DA";
         }
-        ctx.font = font+"15pt 'Whitney'";
+        if (i.inlinecode) {
+            ctx.font = font+(baseFont.split(" ")[0].match(/\d+/)[0]*0.9)+"pt 'Noto Mono'";
+            ctx.fillStyle = "#2d2e33";
+            offset.x += 1;
+            let base = ctx.measureText(i.text);
+            let dim = { x1: base.actualBoundingBoxLeft+offset.x+x-2,
+                        y1: -base.actualBoundingBoxAscent+offset.y+y-3,
+                        x2: base.actualBoundingBoxRight-base.actualBoundingBoxLeft+4,
+                        y2: base.actualBoundingBoxAscent+base.actualBoundingBoxDescent+7 };
+            ctx.fillRect(dim.x1, dim.y1, dim.x2, dim.y2);
+            ctx.fillStyle = fillStyle;
+        } else {
+            ctx.font = font+baseFont;
+        }
         ctx.fillText(i.text, x+offset.x, y+offset.y);
+        if (i.inlinecode) offset.x += 1;
         offset.x = ctx.measureText(i.text).actualBoundingBoxRight-ctx.measureText(i.text).actualBoundingBoxLeft+offset.x;
         if (i.newline) {
             offset.x = 0;
-            offset.y += 23;
+            offset.y += lineHeight;
+        }
+        if (i.emoji) {
+            let emoji = emojis.stack.shift();
+            let emojiPos = {x: x+offset.x, y: y+offset.y-18};
+            emojis.inserters.push(new Promise((resolve, reject) => {
+                request(`https://cdn.discordapp.com/emojis/${emoji.id}.png?v=1`, {encoding: null}, (err, res, body) => {
+                    if (err) reject();
+                    let image = new Canvas.Image();
+                    image.onload = function() {
+                        //console.log("Inserting "+emoji.name+" at ", emojiPos);
+                        ctx.drawImage(image, emojiPos.x, emojiPos.y, 24, 24);
+                        resolve();
+                    }
+                    image.src = new Buffer(body, "binary");
+                });
+            }));
+            offset.x += 24;
         }
     }
     return ctx;
     //console.log(JSON.stringify(formattedText, null, 4));
 }
 
-function genPinImage(channelID, messageArr) {
+function genPinImage(channelID, messageArr, fromPins) {
+    console.log("Starting...");
     const size = {x: 800, y: 32767};
     const textPad = {left: 20, right: 20, top: 34};
     const linePad = 15;
@@ -846,6 +1033,10 @@ function genPinImage(channelID, messageArr) {
     let completed = 0;
     let vpos = 0;
 
+    const embedPad = {left: 40, right: 30, top: 34};
+    const embedPillWidth = 8;
+    const embedFieldSpacer = 15;
+
     let canvas = new Canvas(size.x, size.y);
     let ctx = canvas.getContext('2d');
     ctx.fillStyle = "#36393E";
@@ -854,6 +1045,10 @@ function genPinImage(channelID, messageArr) {
     let t = Date.now();
     let index = 0;
     let resarray = [];
+
+    let urlList = [];
+
+    let emojis = {stack: [], inserters: []};
 
     bot.simulateTyping(channelID);
     getRes();
@@ -864,7 +1059,7 @@ function genPinImage(channelID, messageArr) {
             if (index < messageArr.length) {
                 getRes();
             } else {
-                bot.sendMessage({to: channelID, message: "Converting "+messageArr.length+" "+plural("message", messageArr.length)+" to an image. Let's do it."});
+                bot.sendMessage({to: channelID, message: "Converting "+messageArr.length+" "+plural("message", messageArr.length)+" to an image. Hopefully."});
                 ctxAppend();
             }
         });
@@ -873,40 +1068,46 @@ function genPinImage(channelID, messageArr) {
 
     function ctxAppend() {
         if (resarray.length == 0) {
-            console.log("Creating new canvas");
-            let correctedSize = {x: size.x, y: offset};
-            let realCanvas = new Canvas(correctedSize.x, correctedSize.y);
-            let realCtx = realCanvas.getContext('2d');
-            realCtx.putImageData(ctx.getImageData(0, 0, correctedSize.x, correctedSize.y), 0, 0);
-            console.log("Placed data on new canvas, saving");
-            let write = realCanvas.createPNGStream().pipe(fs.createWriteStream("pins.png"));
-            write.on("finish", function() {
-                console.log("Uploading");
-                bot.uploadFile({to: channelID, file: "pins.png", message: "Pins generated in "+((Date.now()-t)/1000).toFixed(1)+" seconds"}, function(e,r) {
-                    if (!e) {
-                        if (channelPinList[channelID]) {
-                            postToEpigam(channelID, channelPinList[channelID].forum, channelPinList[channelID].topic, "Discord Quotes", "Here's the latest batch of pins from "+channelPinList[channelID].name+". Enjoy.\n\n[img]"+r.attachments[0].url+"[/img]");
+            console.log("Inserting emojis");
+            Promise.all(emojis.inserters).then(() => {
+                console.log("Creating new canvas");
+                let correctedSize = {x: size.x, y: offset};
+                let realCanvas = new Canvas(correctedSize.x, correctedSize.y);
+                let realCtx = realCanvas.getContext('2d');
+                realCtx.putImageData(ctx.getImageData(0, 0, correctedSize.x, correctedSize.y), 0, 0);
+                console.log("Placed data on new canvas, saving");
+                let write = realCanvas.createPNGStream().pipe(fs.createWriteStream("pins.png"));
+                write.on("finish", function() {
+                    console.log("Uploading");
+                    bot.sendMessage({to: channelID, message: "Upload started."});
+                    bot.uploadFile({to: channelID, file: "pins.png", message: "Pins generated in "+((Date.now()-t)/1000).toFixed(1)+" seconds"}, function(e,r) {
+                        if (!e) {
+                            if (channelPinList[channelID]) {
+                                postToEpigam(channelID, channelPinList[channelID].forum, channelPinList[channelID].topic, "Discord Quotes", "Here's the latest batch of pins from "+channelPinList[channelID].name+". Enjoy.\n\n[img]"+r.attachments[0].url+"[/img]");
+                            }
+                            if (fromPins) {
+                                bot.sendMessage({to: channelID, message: "<https://www.tapatalk.com/groups/epigam/posting.php?mode=reply&f=54&t=1005>\n```\n[img]"+r.attachments[0].url+"[/img]\n\Here are all the links/images/attachments featured in the above post:\n[code]\n"+urlList.filter(u => u).join("\n")+"\n[/code]```"});
+                                //bot.sendMessage({to: channelID, message: "Epigam uploads are temporarily disabled. <@176580265294954507> if the pin imge turned out okay then enable it!"});
+                                function deletePinnedMessage(channelID, messageID) {
+                                    bot.deletePinnedMessage({channelID: channelID, messageID: messageID}, function(e) {
+                                        try {
+                                            setTimeout(function() {
+                                                deletePinnedMessage(channelID, messageID)
+                                            }, e.response.retry_after);
+                                            console.log("Pin deletion was rate-limited.");
+                                        } catch (e) {}
+                                    });
+                                }
+                                for (let i of messageArr) {
+                                    deletePinnedMessage(channelID, i);
+                                }
+                            }
+                            //bot.sendMessage({to: channelID, message: "Deleting pinned messages is temporarily disabled. Fix this."});
+                        } else {
+                            bot.sendMessage({to: channelID, message: "Uhoh. I couldn't upload the file. Sup <@176580265294954507>?"});
                         }
-                        //bot.sendMessage({to: channelID, message: "Epigam uploads are temporarily disabled. <@176580265294954507> if the pin imge turned out okay then enable it!"});
-                        function deletePinnedMessage(channelID, messageID) {
-                            bot.deletePinnedMessage({channelID: channelID, messageID: messageID}, function(e) {
-                                try {
-                                    setTimeout(function() {
-                                        deletePinnedMessage(channelID, messageID)
-                                    }, e.response.retry_after);
-                                    console.log("Pin deletion was rate-limited.");
-                                } catch (e) {}
-                            });
-                        }
-                        for (let i of messageArr) {
-                            deletePinnedMessage(channelID, i);
-                        }
-                        //bot.sendMessage({to: channelID, message: "Deleting pinned messages is temporarily disabled. Fix this."});
-                    } else {
-                        bot.sendMessage({to: channelID, message: "Uhoh. I couldn't upload the file. Sup <@176580265294954507>?"});
-                    }
+                    });
                 });
-                bot.sendMessage({to: channelID, message: "Upload started."});
             });
         } else {
             let res = resarray.splice(0, 1)[0];
@@ -925,6 +1126,7 @@ function genPinImage(channelID, messageArr) {
                 res.author.colour = bot.servers[bot.channels[channelID].guild_id].roles[highestID].color;
 
                 // Avatar
+                console.log("ok let's draw an avatar");
                 if (res.author.avatar) {
                     ctx.fillStyle = "#36393E";
                     ctx.beginPath();
@@ -932,22 +1134,27 @@ function genPinImage(channelID, messageArr) {
                     ctx.fill();
                     ctx.closePath();
                     ctx.save();
+                    console.log("ok that's the clip path done");
                     let i = new Canvas.Image;
                     //console.log("https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png");
+                    console.log("ok let's get the image");
                     requestAvatar();
                     function requestAvatar() {
-                        request("https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png", {encoding: null}, function(e,r,b) {
+                        request("https://cdn.discordapp.com/avatars/"+res.author.id+"/"+res.author.avatar+".png?size=64", {encoding: null}, function(e,r,b) {
+                            console.log("cool, there's the image. "+b.length);
                             if (e) {
                                 console.log("Error while getting avatar: "+e);
                                 requestAvatar();
                             } else {
                                 i.onload = function() {
+                                    console.log("ok, the image loaded");
                                     ctx.clip();
                                     ctx.drawImage(i, imagePos.x1, imagePos.y1+offset, imagePos.x2-imagePos.x1, imagePos.y2-imagePos.y1);
                                     ctx.restore();
                                     con1();
                                 }
                                 i.src = new Buffer(b, "binary");
+                                console.log("ok, set the src");
                             }
                         });
                     }
@@ -966,9 +1173,9 @@ function genPinImage(channelID, messageArr) {
                     // Message
                     ctx.font = "regular 15pt 'Whitney'";
                     ctx.fillStyle = "#c0c1c2";
-                    let text = flowText(ctx, fixMentions(res).content, size.x-(imagePos.x2+textPad.left)-textPad.right-8);
+                    let text = flowText(ctx, fixMentions(res, emojis).content, size.x-(imagePos.x2+textPad.left)-textPad.right-8);
                     //ctx.fillText(text, imagePos.x2+textPad.left, textPad.top+28+offset);
-                    ctx = fillFormattedText(ctx, text, imagePos.x2+textPad.left, textPad.top+28+offset);
+                    ctx = fillFormattedText(ctx, text, imagePos.x2+textPad.left, textPad.top+28+offset, emojis);
                     console.log("The vertical position before text detection is "+vpos+", "+offset);
                     //vpos = (ctx.measureText(text).actualBoundingBoxAscent + ctx.measureText(text).actualBoundingBoxDescent + 8)*((text.match(/\n/g) || []).length+1) + textPad.top + offset + 10;
                     vpos = textPad.top + offset + linePad;
@@ -985,15 +1192,97 @@ function genPinImage(channelID, messageArr) {
                     console.log("The vertical position after text detection is "+vpos+", "+offset);
                     console.log(JSON.stringify(ctx.measureText(text), null, 4));
 
+                    // Embeds (kill me now)
+                    if (res.embeds.length && res.embeds[0].type == "rich") {
+                        let embed = res.embeds[0];
+                        let embedSize = {x: 0, y: 0};
+                        vpos += 15;
+                        function drawEmbed() {
+                            let prevpos = vpos;
+                            let last = "";
+                            if (embed.title) {
+                                let text = flowText(ctx, fixMentionsContentOnly(embed.title, emojis), size.x-imagePos.x2-embedPad.left-embedPad.right-8);
+                                ctx = fillFormattedText(ctx, text, imagePos.x2+embedPad.left, embedPad.top+vpos, emojis, "#fff");
+                                vpos += 23 * (text.split("\n").length-1);
+                                last = "title";
+                            }
+                            if (embed.description) {
+                                if (last) vpos += 10;
+                                let text = flowText(ctx, fixMentionsContentOnly(embed.description, emojis), size.x-imagePos.x2-embedPad.left-embedPad.right-8);
+                                ctx = fillFormattedText(ctx, text, imagePos.x2+embedPad.left, embedPad.top+vpos, emojis, "#adafb1");
+                                vpos += 23 * (text.split("\n").length-1);
+                                last = "description";
+                            }
+                            if (embed.fields && embed.fields.length) {
+                                let fieldsets = [];
+                                let currentFieldset = [];
+                                for (let field of embed.fields) {
+                                    if (field.inline && currentFieldset.length <= 2) currentFieldset.push(field);
+                                    else if (field.inline) {
+                                        fieldsets.push(currentFieldset);
+                                        currentFieldset = [field];
+                                    } else {
+                                        fieldsets.push(currentFieldset, [field]);
+                                        currentFieldset = [];
+                                    }
+                                }
+                                if (currentFieldset.length) fieldsets.push(currentFieldset);
+                                for (let fieldset of fieldsets) {
+                                    if (last) vpos += 4;
+                                    let totalWidth = size.x-imagePos.x2-embedPad.left-embedPad.right-8;
+                                    let dividedWidth = (totalWidth-(fieldset.length-1)*embedFieldSpacer)/fieldset.length;
+                                    let restorevpos = vpos;
+                                    let biggestvpos = vpos;
+                                    for (let fieldIndex = 0; fieldIndex < fieldset.length; fieldIndex++) {
+                                        vpos = restorevpos;
+                                        let field = fieldset[fieldIndex];
+                                        let text = flowText(ctx, fixMentionsContentOnly(field.name, emojis), dividedWidth);
+                                        ctx = fillFormattedText(ctx, text, imagePos.x2+embedPad.left+(dividedWidth+embedFieldSpacer)*fieldIndex, embedPad.top+vpos, emojis, "#fff");
+                                        vpos += 23 * (text.split("\n").length-1);
+                                        vpos += 4;
+                                        text = flowText(ctx, fixMentionsContentOnly(field.value, emojis), dividedWidth);
+                                        ctx = fillFormattedText(ctx, text, imagePos.x2+embedPad.left+(dividedWidth+embedFieldSpacer)*fieldIndex, embedPad.top+vpos, emojis, "#adafb1");
+                                        vpos += 23 * (text.split("\n").length-1);
+                                        if (vpos > biggestvpos) biggestvpos = vpos;
+                                    }
+                                    vpos = biggestvpos;
+                                    last = "field";
+                                }
+                            }
+                            if (embed.footer) {
+                                if (last) vpos += 10;
+                                ctx.font = "regular 11pt 'Whitney'";
+                                let text = flowText(ctx, fixMentionsContentOnly(embed.footer.text, emojis), size.x-imagePos.x2-embedPad.left-embedPad.right-8);
+                                ctx = fillFormattedText(ctx, text, imagePos.x2+embedPad.left, embedPad.top+vpos, emojis, "#adafb1", "11pt 'Whitney'", 18);
+                                vpos += 18 * (text.split("\n").length-1);
+                                ctx.font = "regular 15pt 'Whitney'";
+                            }
+                            vpos += 30;
+                            embedSize.y = vpos-prevpos;
+                        }
+                        drawEmbed();
+                        vpos -= embedSize.y;
+                        ctx.fillStyle = (embed.color ? "#"+embed.color.toString(16) : "#4f545c");
+                        ctx.fillRect(imagePos.x2+textPad.left, vpos, embedPillWidth, embedSize.y);
+                        ctx.strokeStyle = "#2f3237";
+                        ctx.lineWidth = 1;
+                        ctx.fillStyle = "#32363c";
+                        ctx.fillRect(imagePos.x2+textPad.left+embedPillWidth, vpos, size.x-imagePos.x2-textPad.right-textPad.left-embedPillWidth, embedSize.y);
+                        ctx.strokeRect(imagePos.x2+textPad.left+embedPillWidth, vpos, size.x-imagePos.x2-textPad.right-textPad.left-embedPillWidth, embedSize.y);
+                        drawEmbed();
+                    }
+
                     // Images/Attachments
+                    urlList = urlList.concat(res.content.match(/(https?:\/\/([-0-9a-z]+\.)+[a-z]+(\/[-._a-zA-Z0-9?=&+%/]+)?)/g)).concat(res.attachments.map(a => a.url).filter(a => a));
+                    console.log("urlList length is "+urlList.length);
                     let attachmentsLeft = res.embeds.concat(res.attachments).length;
                     if (attachmentsLeft == 0) con2();
                     for (let a of res.embeds.concat(res.attachments)) {
                         if (!a.url) a.url = "";
                         if (a.url.match(/\.png$/i)) {
-                            console.log("Requesting image");
+                            console.log("Requesting PNG");
                             request(a.url, {encoding: null}, function(e,r,b) {
-                                console.log("Requested image");
+                                console.log("Requested PNG");
                                 let image = new Canvas.Image();
                                 image.onload = function() {
                                     let width = size.x-(imagePos.x2+textPad.left)-textPad.right;
@@ -1001,6 +1290,7 @@ function genPinImage(channelID, messageArr) {
                                     if (image.height*sf > maxImageHeight) {
                                         sf = sf*maxImageHeight/(image.height*sf);
                                     }
+                                    console.log("Image dimensions are "+image.width+"x"+image.height+" and scaling is "+sf);
                                     ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
                                     console.log("Drew image");
                                     vpos += image.height*sf+15;
@@ -1011,10 +1301,14 @@ function genPinImage(channelID, messageArr) {
                                 image.src = new Buffer(b, "binary");
                             });
                         } else if (a.url.match(/\.jpg$/) || a.url.match(/\.jpeg$/i)) {
+                            console.log("Requesting JPG");
                             request(a.url, {encoding: null}, function(e,r,b) {
+                                console.log("Requested JPG");
                                 new exif.ExifImage({image: b}, function(e, exifData) {
                                     let image = new Canvas.Image();
+                                    console.log("Placed JPG");
                                     image.onload = function() {
+                                        console.log("Loaded JPG");
                                         let width = size.x-(imagePos.x2+textPad.left)-textPad.right;
                                         let sf = (image.width < width ? 1 : width/image.width);
                                         if (image.height*sf > maxImageHeight) {
@@ -1036,7 +1330,7 @@ function genPinImage(channelID, messageArr) {
                                             ctx.drawImage(image, imagePos.x2+textPad.left, vpos, image.width*sf, image.height*sf);
                                             vpos += image.height*sf+15;
                                         }
-                                        console.log("Drew image");
+                                        console.log("Drew JPG");
                                         attachmentsLeft--;
                                         console.log(attachmentsLeft);
                                         if (attachmentsLeft == 0) con2();
@@ -1719,8 +2013,8 @@ function werewolf(user, userID, channelID, command) {
                                     }
                                 finalResults += " "+wwgPlayerNames[i];
                                 }
-                                fs.writeFile("/home/pi/Documents/wwgstats.txt", JSON.stringify(wwgStats, null, 4));
-                                fs.writeFile("/var/www/html/stats.js", "let wwgStats = "+JSON.stringify(wwgStats)+";");
+                                fs.writeFile("wwgstats.txt", JSON.stringify(wwgStats, null, 4), new Function());
+                                fs.writeFile("/var/www/html/stats.js", "let wwgStats = "+JSON.stringify(wwgStats)+";", new Function());
                                 finalResults += "```";
                                 wwgGameStarted = false;
                                 wwgVoting = false;
@@ -1851,8 +2145,8 @@ function werewolf(user, userID, channelID, command) {
                 wwgStats[i].username = bot.users[i].username;
                 wwgStats[i].avatar = bot.users[i].avatar;
             }
-            fs.writeFile("/home/pi/Documents/wwgstats.txt", JSON.stringify(wwgStats, null, 4));
-            fs.writeFile("/var/www/html/stats.js", "let wwgStats = "+JSON.stringify(wwgStats)+";");
+            fs.writeFile("wwgstats.txt", JSON.stringify(wwgStats, null, 4), new Function());
+            fs.writeFile("/var/www/html/stats.js", "let wwgStats = "+JSON.stringify(wwgStats)+";", new Function());
             output = "Usernames and avatars have been corrected on the statistics webpage.";
 
             break;
@@ -1956,15 +2250,16 @@ function vote(userID, channelID, command) {
 }
 
 function proxy(command, number) {
+    let blacklistedServers = ["338363692955729930", "370375630736588811"];
     var channelID = command.split(";")[1];
     var message = command.split(";").slice(2).join(";");
     if (bot.channels[channelID] || bot.users[channelID]) {
-        bot.sendMessage({to: channelID, message: "​"+message});
+        if (!blacklistedServers.includes(bot.channels[channelID].guild_id)) bot.sendMessage({to: channelID, message: "​"+message});
     } else {
         let ok = false;
         for (let c in bot.channels) {
             if (bot.channels[c].name == channelID && !ok) {
-                bot.sendMessage({to: c, message: "​"+message}); // Zero-width space!!!!
+                if (!blacklistedServers.includes(bot.channels[c].guild_id)) bot.sendMessage({to: c, message: "​"+message}); // Zero-width space!!!!
                 ok = true;
             }
         }
@@ -2106,7 +2401,7 @@ function tz(userID, channelID, command) {
                 bot.sendMessage({to: channelID, message: "<@"+userID+"> Your local time was set to "+time.getUTCHours()+":"+(time.getUTCMinutes() <= 9 ? ("0"+time.getUTCMinutes().toString()) : time.getUTCMinutes())+" (24hr)."});
             }
             userTimes[userID] = command.split(";")[2];
-            fs.writeFile("/home/pi/Documents/usertimes.txt", JSON.stringify(userTimes));
+            fs.writeFile("usertimes.txt", JSON.stringify(userTimes), new Function());
         });
         break;
     default:
@@ -2191,7 +2486,7 @@ function twatrDetect(userID, channelID, command) {
     let onlineList = [];
     let offlineList = [];
     for (let i = 0; i < warPeople.length; i++) {
-        if (bot.servers["210597400514002945"].members[warPeople[i]].status == "online") {
+        if (bot.servers["210597400514002945"].members[warPeople[i]] && bot.servers["210597400514002945"].members[warPeople[i]].status == "online") {
             numberOnline++;
             onlineList.push(bot.users[warPeople[i]].username);
         } else {
@@ -2308,15 +2603,15 @@ function checkTurn(channelID, command) {
 bot.on("ready", function() { // When the bot comes online...
     console.log("I'm online!");
     if (!restarted) {
-        fs.readFile("/home/pi/Documents/wwgstats.txt", "utf8", function(err, data) {
+        fs.readFile("wwgstats.txt", "utf8", function(err, data) {
             if (!err) {
                 wwgStats = JSON.parse(data);
                 //console.log("Loaded wwg stats: "+JSON.stringify(wwgStats));
             }
         });
-        userTimes = JSON.parse(fs.readFileSync("/home/pi/Documents/usertimes.txt", "utf8"));
+        userTimes = JSON.parse(fs.readFileSync("usertimes.txt", "utf8"));
         //console.log("Loaded user times: "+JSON.stringify(userTimes, null, 4));
-        setInterval(function(){bot.sendMessage({to: "330164254969823233", message: "<@113852329832218627>"})}, 30000);
+        //setInterval(function(){bot.sendMessage({to: "330164254969823233", message: "<@113852329832218627>"})}, 30000);
         //bot.leaveVoiceChannel(bot.servers["112760669178241024"].members["176580265294954507"].voice_channel_id);
         function logCTPlaying() {
             if (cytubeCheck) {
@@ -2361,6 +2656,13 @@ bot.on("message", function(user, userID, channelID, message, event) {
             if (!e) bot.deleteMessage({channelID: channelID, messageID: r.id});
         });
     }
+    if (message == "Drop this message to 5 of your friends for $1 million" && userID == "309960863526289408") {
+        bot.sendMessage({to: channelID, message: ":("});
+    }
+    if (message.startsWith("ignore pinned message") && userID == "309960863526289408" && channelID == "382641553803444224") {
+        let id = message.match(/[0-9]{8,}/)[0];
+        ignorePinnedMessages.push(id);
+    }
     if (event.d.type == 6 && userID == bot.id) {
         bot.deleteMessage({channelID: channelID, messageID: event.d.id});
     }
@@ -2386,10 +2688,14 @@ bot.on("message", function(user, userID, channelID, message, event) {
         if (realPin) {
             bot.getPinnedMessages({channelID: channelID}, function(e,r) {
                 if (!e) bot.getMessage({channelID: channelID, messageID: r[0].id}, function(e,r) {
+                    if (ignorePinnedMessages.includes(r.id)) return;
                     sendToPinsChannel(channelID, r.author.id, r, userID);
                 });
             });
         }
+    }
+    if (channelID == "317219186000527362" && (event.d.attachments[0] || event.d.embeds[0])) {
+        bot.sendMessage({to: "330164254969823233", message: "<@113852329832218627> "+(event.d.attachments[0] || event.d.embeds[0]).url});
     }
     if (channelID == "304384243130171395" && userID == "113457314106740736" && message.match(/round/i)) {
         bot.getPinnedMessages({channelID: channelID}, function(e,a) {
@@ -2485,18 +2791,20 @@ bot.on("message", function(user, userID, channelID, message, event) {
                 break;
             case "..pinimage":
                 if (userID == "176580265294954507") {
+                    console.log("Matched user");
                     if (message.split(";")[1]) {
-                        genPinImage(channelID, message.split(";").slice(1));
+                        genPinImage(channelID, message.split(";").slice(1), false);
                     } else {
                         bot.getPinnedMessages({channelID: channelID}, function(e,r) {
                             if (!e) {
+                                console.log("Got pins");
                                 if (r.length == 50) {
                                     let b = [];
                                     for (let i of r.slice(25)) {
                                         b.push(i.id);
                                     }
                                     b.reverse();
-                                    genPinImage(channelID, b);
+                                    genPinImage(channelID, b, true);
                                 }
                             }
                         });
@@ -2522,10 +2830,10 @@ bot.on("message", function(user, userID, channelID, message, event) {
             }
         }
     }
-    if (reverse(message).search(/:\w*:(?!<)/) != -1 && !bot.users[userID].bot) {
+    /*if (reverse(message).search(/:\w*:(?!<)/) != -1 && !message.match(/<a:/) && !bot.users[userID].bot) {
         let result = emoji(user, userID, channelID, message, event);
         if (result) bot.sendMessage({to: channelID, message: "**"+user+"**: "+result});
-    }
+    }*/
     if (message.indexOf("..lenny") != -1) {
         message = message.replace(/..lenny;/g, "( ͡° ͜ʖ ͡°)");
         message = message.replace(/..lenny/g, "( ͡° ͜ʖ ͡°)");
@@ -2554,6 +2862,7 @@ bot.on("message", function(user, userID, channelID, message, event) {
         fs.writeFile("/var/www/html/stats.js", "let wwgStats = "+JSON.stringify(wwgStats)+";");
         bot.sendMessage({to: channelID, message: "OK."});
     }*/
+    return;
     if (message.match(/play/i) && message.charAt(0).match(/\w/)) {
         let vRegexes = [/https?:\/\/.*youtube\.co.*\/watch\?.*v=([-_a-zA-Z0-9]{10,})/, /https?:\/\/youtu\.be\/([-_a-zA-Z0-9]{10,})/];
         let pRegexes = [/https?:\/\/.*youtube\.co.*\/playlist\?.*list=([-_a-zA-Z0-9]+)/];
@@ -2662,14 +2971,19 @@ bot.on("presence", function(user, userID, status, game, event) {
     setTimeout(function() {
         let allOnline = true;
         for (let i = 0; i < warPeople.length; i++) {
-            if (bot.servers["210597400514002945"].members[warPeople[i]].status != "online") allOnline = false;
+            if (!bot.servers["210597400514002945"].members[warPeople[i]] || bot.servers["210597400514002945"].members[warPeople[i]].status != "online") allOnline = false;
         }
         if (!warPeopleOnline && allOnline) {
             warPeopleOnline = true;
             if ((lastPing+1000*60*60*2) < Date.now()) {
                 getTurnInfo(function(response) {
                     if (!response.everyoneSpoken) {
-                        bot.sendMessage({to: "302683438010466305", message: "You're all online, and <@"+response.notTaken.join("> and <@")+"> still "+plural("need", (response.notTaken.length != 1))+" to decide on an action."});
+                        /*
+                        //bot.sendMessage({to: "302683438010466305", message: "You're all online, and <@"+response.notTaken.join("> and <@")+"> still "+plural("need", (response.notTaken.length != 1))+" to decide on an action."});
+                        bot.sendMessage({to: "302683438010466305", message: "You're all online, and........"});
+                        setTimeout(function() {
+                            bot.sendMessage({to: "302683438010466305", message: "...seriously <@113457314106740736>?"});
+                        }, 3500);*/
                     }
                 });
                 console.log("Sent twatr message (lastPing: "+lastPing+", test: "+(lastPing+1000*60*60*2)+", now: "+Date.now()+")");
@@ -2690,6 +3004,16 @@ bot.on("disconnect", function() {
 
 bot.on("any", function(event) {
     if (event.t == "MESSAGE_REACTION_ADD") {
+        if (onemdList.includes(event.d.message_id) && event.d.emoji.name == "bn_3") {
+            onemdList.length = 0;
+            bot.addReaction({channelID: event.d.channel_id, messageID: event.d.message_id, reaction: {name: "bn_3", id: "327896452363976704"}}, function(e,r) {
+                setTimeout(function() {
+                    bot.addReaction({channelID: event.d.channel_id, messageID: event.d.message_id, reaction: {name: "bn_3", id: "327896452363976704"}}, function(e,r) {
+                        bot.sendMessage({to: event.d.channel_id, message: "Drop this message to 5 of your friends for $1 million"});
+                    });
+                }, 2500);
+            });
+        }
         if (event.d.emoji.name == "markedforpinning" && event.d.emoji.id == "292130109215735808" && bot.channels[event.d.channel_id].guild_id == "112760669178241024") {
             bot.getMessage({channelID: event.d.channel_id, messageID: event.d.message_id}, function(err, res) {
                 if (!err) {
@@ -2716,3 +3040,5 @@ bot.on("any", function(event) {
         }
     }
 });
+
+bot.on("guildMemberAdd", console.log)
